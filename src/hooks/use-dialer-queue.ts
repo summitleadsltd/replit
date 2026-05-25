@@ -538,7 +538,7 @@ export function useDialerQueue(campaignId: string | null, queueFilter?: QueueFil
       const startedAt = callStartedAt || endedAt;
 
       // 1. Create call log
-      const { data: callLogData } = await supabase.from("call_attempts").insert({
+      const { data: callLogData, error: callLogError } = await supabase.from("call_attempts").insert({
         contact_id: currentLead.contact_id,
         campaign_id: campaignId,
         agent_id: userId || null,
@@ -553,6 +553,14 @@ export function useDialerQueue(campaignId: string | null, queueFilter?: QueueFil
         outcome: dispositionCode === "appointment_booked" ? "appointment_booked" : dispositionCode === "callback" ? "callback_scheduled" : dispositionCode === "dnc" ? "dnc_request" : dispositionCode === "wrong_number" ? "wrong_number" : dispositionCode === "voicemail" ? "voicemail" : dispositionCode === "no_answer" ? "no_answer" : dispositionCode === "busy" ? "busy" : dispositionCode === "not_interested" ? "not_interested" : "connected",
         provider_used: "livekit",
       }).select("id").single();
+
+      if (callLogError) {
+        // Loud failure — previously this swallowed schema/trigger errors and
+        // produced an empty call_attempts table while everything else looked
+        // fine. Keep going so we still update campaign_contacts, but surface
+        // the error in dev + browser console so operators can react.
+        console.error("[Queue] ❌ call_attempts.insert failed:", callLogError.message, callLogError);
+      }
 
       const callLogId = callLogData?.id || null;
 

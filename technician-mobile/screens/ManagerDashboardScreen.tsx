@@ -15,6 +15,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import { supabase, Appointment, Technician } from '../lib/supabase';
 import { colors, STATUS_COLORS, shadows, spacing, borderRadius } from '../lib/theme';
+import { formatAppDateShort, formatAppTime } from '../lib/timezone';
 
 type ManagerDashboardNavigationProp = StackNavigationProp<RootStackParamList, 'ManagerDashboard'>;
 
@@ -121,21 +122,11 @@ export default function ManagerDashboardScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
-    });
+    return formatAppDateShort(dateString);
   };
 
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      hour12: true 
-    });
+    return formatAppTime(dateString);
   };
 
   const getStatusColor = (status: string) => STATUS_COLORS[status] || '#8E8E93';

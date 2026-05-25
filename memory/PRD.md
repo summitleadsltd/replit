@@ -24,7 +24,57 @@
 - Connected to user's Supabase project: `wggmfykmabandkllqodc.supabase.co`
 - Test admin login: `info@summitleadsltd.com` / `123456789` (see test_credentials.md)
 
-## Implementation Log — 2026-05-25
+## Implementation Log — 2026-05-25 (Session 2)
+
+### Investigation: Why call_recordings is empty in prod
+**Root cause uncovered (not a webhook issue):** A trigger function
+`public.validate_call_attempt_link()` references three columns that do not
+exist on the production `call_attempts` table:
+`telnyx_call_control_id`, `telnyx_call_session_id`, `livekit_call_id`.
+
+Every `INSERT INTO call_attempts` fails with:
+```
+ERROR  42703  record "new" has no field "telnyx_call_control_id"
+```
+The frontend's `.insert(...).single()` swallowed the error so the failure
+was invisible. Meanwhile the dialer's separate `UPDATE campaign_contacts`
+kept incrementing `attempts` and `last_called_at`, making the dashboard
+look healthy while `call_attempts` (and downstream `call_recordings`)
+stayed at zero rows.
+
+**Fix written but NOT applied yet** — requires user action:
+- New migration: `supabase/migrations/20260525000000_fix_call_attempts_trigger.sql`
+- Step-by-step deploy guide: `/app/CRITICAL_DB_FIX_README.md`
+- Frontend also now logs `call_attempts.insert` errors loudly (in
+  `src/hooks/use-dialer-queue.ts`) so this class of bug can't hide again.
+
+### EST sweep on technician-mobile
+Created `technician-mobile/lib/timezone.ts` (mirror of the web helper).
+Patched:
+- `screens/DashboardScreen.tsx` — `gte('appointment_at', startOfAppToday())`
+  for the today-and-future filter; `formatDate`/`formatTime` now use EST.
+  Also fixed a runtime crash in the realtime channel callback that
+  referenced an undefined `session` variable.
+- `screens/AvailabilityScreen.tsx` — `generateDays()` now produces ET
+  calendar days (not UTC); `formatDate` labels and `isToday` flag computed
+  in ET; `getDayOfWeek` resolved via Intl in ET so the weekend tint matches
+  the ET calendar.
+- `screens/AppointmentDetailScreen.tsx` — `formatDateTime` now uses
+  `formatAppDateTime` (ET, with "ET" suffix).
+- `screens/ManagerDashboardScreen.tsx` — `formatDate` and `formatTime` now
+  delegate to the ET helpers.
+
+### OpenAI key / Edge function redeploy
+- Code is ready: `supabase/functions/training-simulation/index.ts` and
+  `supabase/functions/ai-call-summary/index.ts` prefer
+  `OPENAI_API_KEY` when present, fall back to apifreellm otherwise.
+- **Blocked on user**: needs a real OpenAI API key (Emergent's universal
+  key is proxy-routed via the Python `emergentintegrations` library and
+  cannot be used directly from Deno) and either Supabase access token for
+  `supabase functions deploy …` from this pod, or the user deploying from
+  the Lovable / Supabase dashboard themselves.
+
+
 
 ### Bugs fixed (web app, `src/`)
 

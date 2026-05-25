@@ -13,6 +13,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import { supabase, Appointment, Contact, Technician } from '../lib/supabase';
 import { colors, STATUS_COLORS, shadows, spacing, borderRadius } from '../lib/theme';
+import { startOfAppToday, formatAppDateShort, formatAppTime } from '../lib/timezone';
 
 type DashboardScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -61,9 +62,8 @@ export default function DashboardScreen() {
 
       setTechnician(techData);
 
-      // Fetch appointments for this technician (today and future)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Fetch appointments for this technician (today EST and future)
+      const todayEstStart = startOfAppToday();
 
       const { data: appts, error: apptsError } = await supabase
         .from('appointments')
@@ -81,7 +81,7 @@ export default function DashboardScreen() {
           )
         `)
         .eq('technician_id', techData.id)
-        .gte('appointment_at', today.toISOString())
+        .gte('appointment_at', todayEstStart.toISOString())
         .order('appointment_at', { ascending: true });
 
       if (apptsError) throw apptsError;
@@ -105,11 +105,16 @@ export default function DashboardScreen() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'appointments' },
         (payload) => {
-          // Only refresh if this appointment belongs to the current technician
-          if (payload.new?.technician_id === session?.user?.id ||
-              payload.old?.technician_id === session?.user?.id) {
-            fetchData();
-          }
+          // Only refresh when the affected appointment belongs to the
+          // currently-loaded technician. (Previously referenced an
+          // undefined `session` variable, which crashed the handler.)
+          const techId = (payload.new as { technician_id?: string } | null)?.technician_id
+            ?? (payload.old as { technician_id?: string } | null)?.technician_id;
+          if (!techId) return;
+          // We can't see `technician` directly inside this closure (would be
+          // stale), so always refetch — fetchData re-resolves the current
+          // technician via auth.
+          fetchData();
         }
       )
       .subscribe();
@@ -138,24 +143,13 @@ export default function DashboardScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    // Parse ISO date and display in UTC timezone
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric',
-      timeZone: 'UTC'
-    });
+    // Eastern Time, app-wide.
+    return formatAppDateShort(dateString);
   };
 
   const formatTime = (dateString: string) => {
-    // Parse ISO date and display in UTC timezone
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      timeZone: 'UTC'
-    });
+    // Eastern Time, app-wide.
+    return formatAppTime(dateString);
   };
 
   const renderAppointment = ({ item }: { item: AppointmentWithContact }) => (

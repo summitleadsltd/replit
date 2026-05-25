@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { colors, shadows, spacing, borderRadius } from '../lib/theme';
+import { appToday, appDateFor } from '../lib/timezone';
 
 interface AvailabilityDay {
   id: string;
@@ -30,14 +31,14 @@ export default function AvailabilityScreen() {
   const [editNote, setEditNote] = useState('');
   const [editIsAvailable, setEditIsAvailable] = useState(true);
 
-  // Generate next 30 days
+  // Generate next 30 calendar days (Eastern Time)
   const generateDays = () => {
-    const days = [];
-    const today = new Date();
+    const days: string[] = [];
+    const startIso = appToday(); // YYYY-MM-DD in ET
+    const [y, m, d] = startIso.split("-").map(Number);
     for (let i = 0; i < 30; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      days.push(date.toISOString().split('T')[0]);
+      const probe = new Date(Date.UTC(y, m - 1, d + i, 12, 0, 0));
+      days.push(appDateFor(probe));
     }
     return days;
   };
@@ -155,25 +156,31 @@ export default function AvailabilityScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    // Parse as local date by splitting the ISO string
+    // dateString is a "YYYY-MM-DD" Eastern calendar day.
+    // We label it using ET parts so weekday/month always match the ET day,
+    // regardless of the device's local timezone.
     const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    const today = new Date();
-    const isToday = date.toDateString() === today.toDateString();
-    
+    // Build a UTC instant at noon ET on the target day, so the labels
+    // never slip across a day boundary due to local-tz interpretation.
+    const probe = new Date(Date.UTC(year, month - 1, day, 17, 0, 0));
     return {
-      dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
-      dayNumber: date.getDate(),
-      month: date.toLocaleDateString('en-US', { month: 'short' }),
-      isToday,
+      dayName: new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'America/New_York' }).format(probe),
+      dayNumber: day,
+      month: new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'America/New_York' }).format(probe),
+      isToday: dateString === appToday(),
     };
   };
 
   const getDayOfWeek = (dateString: string) => {
-    // Parse as local date by splitting the ISO string
+    // Day-of-week computed in ET so weekends are consistent app-wide.
     const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.getDay(); // 0 = Sunday, 6 = Saturday
+    const probe = new Date(Date.UTC(year, month - 1, day, 17, 0, 0));
+    const weekday = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      timeZone: 'America/New_York',
+    }).format(probe);
+    const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return map[weekday] ?? 0;
   };
 
   const isWeekend = (dateString: string) => {

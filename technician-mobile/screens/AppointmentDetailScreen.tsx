@@ -16,6 +16,7 @@ import { RootStackParamList } from '../App';
 import { supabase, Appointment, Contact, JobCard, AppointmentStatus } from '../lib/supabase';
 import { colors, STATUS_COLORS, shadows, spacing, borderRadius } from '../lib/theme';
 import ImageUpload from '../components/ImageUpload';
+import { formatAppDateTime } from '../lib/timezone';
 
 type AppointmentDetailRouteProp = {
   params: {
@@ -200,14 +201,7 @@ export default function AppointmentDetailScreen() {
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    return formatAppDateTime(date);
   };
 
   if (loading) {
