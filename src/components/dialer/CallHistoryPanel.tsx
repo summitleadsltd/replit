@@ -72,7 +72,7 @@ export default function CallHistoryPanel({ contactId }: Props) {
         attemptIds.length
           ? supabase
               .from("call_recordings")
-              .select("call_attempt_id, recording_url")
+              .select("call_attempt_id, recording_url, download_url")
               .in("call_attempt_id", attemptIds)
           : Promise.resolve({ data: [], error: null } as any),
         attemptIds.length
@@ -91,7 +91,7 @@ export default function CallHistoryPanel({ contactId }: Props) {
 
       const recMap = new Map<string, string>();
       for (const r of (recRes.data ?? []) as any[]) {
-        const url = r.recording_url;
+        const url = r.download_url || r.recording_url;
         if (url && !recMap.has(r.call_attempt_id)) recMap.set(r.call_attempt_id, url);
       }
       const sumMap = new Map<string, { summary: string; sentiment: string | null }>();

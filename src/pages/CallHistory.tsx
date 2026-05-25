@@ -164,7 +164,7 @@ export default function CallHistory() {
           ? supabase.from("profiles").select("user_id, display_name, email").in("user_id", agentIds)
           : Promise.resolve({ data: [] as any[] }),
         recordingIds.length > 0
-          ? supabase.from("call_recordings").select("id, recording_url").in("id", recordingIds)
+          ? supabase.from("call_recordings").select("id, recording_url, download_url").in("id", recordingIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
@@ -174,7 +174,7 @@ export default function CallHistory() {
       }
       const recordingMap = new Map<string, string>();
       for (const r of (recordingsRes.data || []) as any[]) {
-        recordingMap.set(r.id, r.recording_url || "");
+        recordingMap.set(r.id, r.download_url || r.recording_url || "");
       }
 
       const rows: CallRow[] = (data || []).map((c: any) => {

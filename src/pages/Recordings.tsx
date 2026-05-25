@@ -101,7 +101,7 @@ export default function Recordings() {
         const offset = page * pageSize;
         const { data: simpleData, error: simpleError, count } = await supabase
           .from("call_recordings")
-          .select("id, duration_seconds, format, created_at, call_attempt_id, recording_url, agent_id, campaign_id", { count: "exact" })
+          .select("id, duration_seconds, format, created_at, call_attempt_id, recording_url, download_url, agent_id, campaign_id", { count: "exact" })
           .gte("created_at", fromIso)
           .lte("created_at", toIso)
           .order("created_at", { ascending: false })
@@ -145,8 +145,8 @@ export default function Recordings() {
             format: r.format,
             created_at: r.created_at,
             call_attempt_id: r.call_attempt_id,
-            audio_url: r.recording_url || null,
-            has_audio: Boolean(r.recording_url),
+            audio_url: r.download_url || r.recording_url || null,
+            has_audio: Boolean(r.download_url || r.recording_url),
             contact_name: contactName || "Unknown",
             agent_name: r.agent_id ? profileMap.get(r.agent_id) || "—" : "—",
             disposition: attempt?.disposition || null,
