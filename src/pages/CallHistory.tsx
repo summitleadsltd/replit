@@ -26,7 +26,10 @@ import { ReportFilters, type DateRange, rangeFromPreset } from "@/components/rep
 import { EmptyState } from "@/components/reports/EmptyState";
 import { exportToCsv } from "@/lib/export-csv";
 import { toast } from "@/hooks/use-toast";
-import { formatEST, formatESTShort, formatESTTime } from "@/lib/timezone";
+import { formatEST, formatESTShort, formatESTTime, appToday } from "@/lib/timezone";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface CallRow {
@@ -83,8 +86,16 @@ export default function CallHistory() {
 
   // Data
   const [calls, setCalls] = useState<CallRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Reset to first page whenever filters change
+  useEffect(() => {
+    setPage(0);
+  }, [range, selectedCampaign, selectedAgent, selectedDispo, search, pageSize]);
 
   // Audio playback
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -121,25 +132,28 @@ export default function CallHistory() {
     try {
       const fromIso = new Date(range.from).toISOString();
       const toIso = new Date(new Date(range.to).setHours(23, 59, 59, 999)).toISOString();
+      const offset = page * pageSize;
 
       // Query call_attempts with joined contacts and campaigns
       let query = supabase
         .from("call_attempts")
         .select(
-          "id, contact_id, agent_id, campaign_id, started_at, ended_at, duration_seconds, disposition, outcome, notes, created_at, call_recording_id, contacts(first_name, last_name, phone_e164), campaigns(name)"
+          "id, contact_id, agent_id, campaign_id, started_at, ended_at, duration_seconds, disposition, outcome, notes, created_at, call_recording_id, contacts(first_name, last_name, phone_e164), campaigns(name)",
+          { count: "exact" }
         )
         .gte("created_at", fromIso)
         .lte("created_at", toIso)
         .order("created_at", { ascending: false })
-        .limit(1000);
+        .range(offset, offset + pageSize - 1);
 
       // Agents only see their own calls
       if (!isManager && user) {
         query = query.eq("agent_id", user.id);
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) throw error;
+      setTotalCount(count ?? 0);
 
       // Enrich with agent names and recording URLs
       const agentIds = Array.from(new Set((data || []).map((c: any) => c.agent_id).filter(Boolean)));
@@ -150,7 +164,7 @@ export default function CallHistory() {
           ? supabase.from("profiles").select("user_id, display_name, email").in("user_id", agentIds)
           : Promise.resolve({ data: [] as any[] }),
         recordingIds.length > 0
-          ? supabase.from("call_recordings").select("id, recording_url, download_url").in("id", recordingIds)
+          ? supabase.from("call_recordings").select("id, recording_url").in("id", recordingIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
@@ -160,7 +174,7 @@ export default function CallHistory() {
       }
       const recordingMap = new Map<string, string>();
       for (const r of (recordingsRes.data || []) as any[]) {
-        recordingMap.set(r.id, r.download_url || r.recording_url || "");
+        recordingMap.set(r.id, r.recording_url || "");
       }
 
       const rows: CallRow[] = (data || []).map((c: any) => {
@@ -196,7 +210,7 @@ export default function CallHistory() {
     } finally {
       setLoading(false);
     }
-  }, [range, user, isManager]);
+  }, [range, user, isManager, page, pageSize]);
 
   useEffect(() => {
     fetchCalls();
@@ -285,7 +299,7 @@ export default function CallHistory() {
   // ── CSV Export ───────────────────────────────────────────────────
   const handleExport = () => {
     exportToCsv(
-      `call-history-${range.from.toISOString().slice(0, 10)}-to-${range.to.toISOString().slice(0, 10)}`,
+      `call-history-${appToday()}`,
       filtered.map((c) => ({
         date: c.created_at ? formatESTShort(c.created_at) : "",
         contact: c.contact_name,
@@ -400,8 +414,7 @@ export default function CallHistory() {
       {/* Results count */}
       {!loading && !errorMessage && (
         <p className="text-sm text-muted-foreground">
-          {filtered.length} call{filtered.length !== 1 ? "s" : ""}
-          {filtered.length !== calls.length && ` (filtered from ${calls.length})`}
+          Showing {filtered.length} of {calls.length} on this page · {totalCount} total
         </p>
       )}
 
@@ -511,6 +524,47 @@ export default function CallHistory() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {!loading && totalCount > 0 && (
+        <div className="flex items-center justify-between mt-2 pt-4 border-t border-border" data-testid="callhistory-pagination">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Rows per page</span>
+            <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+              <SelectTrigger className="h-7 w-[70px]" data-testid="callhistory-page-size">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((o) => (
+                  <SelectItem key={o} value={String(o)}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="ml-3">
+              Page {page + 1} of {Math.max(1, Math.ceil(totalCount / pageSize))}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 0 || loading}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              data-testid="callhistory-prev"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || (page + 1) * pageSize >= totalCount}
+              onClick={() => setPage((p) => p + 1)}
+              data-testid="callhistory-next"
+            >
+              Next<ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -186,13 +186,67 @@ serve(async (req) => {
     }
 
     const { scenario, difficulty, transcript, mode, campaign_id } = requestBody;
+
+    // Preferred: OpenAI direct (set OPENAI_API_KEY in Supabase Edge Function secrets).
+    // Fallback: apifreellm.com via APIFREE_API_KEY (blocks datacenter IPs on free tier).
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
     const apiKey = Deno.env.get("APIFREE_API_KEY");
-    if (!apiKey) {
-      console.error("APIFREE_API_KEY not configured");
-      return new Response(JSON.stringify({ error: "AI service not configured" }), {
+    if (!openaiKey && !apiKey) {
+      console.error("Neither OPENAI_API_KEY nor APIFREE_API_KEY configured");
+      return new Response(JSON.stringify({ error: "AI service not configured. Add OPENAI_API_KEY in Supabase Edge Function secrets." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    /**
+     * Unified LLM call. When OPENAI_API_KEY is present we call OpenAI chat
+     * completions; otherwise we fall back to the existing apifreellm endpoint.
+     * Returns the assistant text (string).
+     */
+    async function callLLM(prompt: string, opts?: { jsonMode?: boolean }): Promise<{ ok: true; text: string } | { ok: false; status: number; body: string }> {
+      if (openaiKey) {
+        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openaiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: openaiModel,
+            messages: [
+              { role: "system", content: "You are a helpful assistant. Follow the user's instructions exactly." },
+              { role: "user", content: prompt },
+            ],
+            temperature: 0.7,
+            ...(opts?.jsonMode ? { response_format: { type: "json_object" } } : {}),
+          }),
+        });
+        if (!resp.ok) {
+          const body = await resp.text();
+          return { ok: false, status: resp.status, body };
+        }
+        const data = await resp.json();
+        const text = data?.choices?.[0]?.message?.content ?? "";
+        return { ok: true, text };
+      }
+
+      // apifreellm fallback
+      const resp = await fetch("https://apifreellm.com/api/v1/chat", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: prompt }),
+      });
+      if (!resp.ok) {
+        const body = await resp.text();
+        return { ok: false, status: resp.status, body };
+      }
+      const data = await resp.json();
+      return { ok: true, text: data.response ?? "" };
     }
 
     const scenarioPrompt =
@@ -239,35 +293,19 @@ Please provide:
 
 Format your response as JSON: {"score": number, "strengths": "string", "improvements": "string", "booked_appointment": boolean}`;
 
-      const scoreResp = await fetch(
-        "https://apifreellm.com/api/v1/chat",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: message,
-          }),
-        }
-      );
-
-      if (!scoreResp.ok) {
-        const t = await scoreResp.text();
-        return new Response(JSON.stringify({ error: t }), {
-          status: scoreResp.status,
+      const scoreResult = await callLLM(message, { jsonMode: true });
+      if (!scoreResult.ok) {
+        return new Response(JSON.stringify({ error: scoreResult.body }), {
+          status: scoreResult.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const data = await scoreResp.json();
-      // apifreellm.com returns { success: true, response: "..." }
+      // Parse the score JSON
       let parsed;
       try {
-        parsed = JSON.parse(data.response);
+        parsed = JSON.parse(scoreResult.text);
       } catch {
-        // If response is not JSON, try to extract score from text
         parsed = {
           score: 70,
           strengths: "Attempted the call",
@@ -301,43 +339,27 @@ ${conversationHistory}
 
 Respond as the prospect with a short, realistic reply.`;
 
-    const resp = await fetch(
-      "https://apifreellm.com/api/v1/chat",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: message,
-        }),
-      }
-    );
-
-    if (!resp.ok) {
-      if (resp.status === 429) {
+    const replyResult = await callLLM(message);
+    if (!replyResult.ok) {
+      if (replyResult.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (resp.status === 402) {
+      if (replyResult.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Add credits in Lovable workspace." }),
+          JSON.stringify({ error: "AI credits exhausted. Add credits to your OpenAI account." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const t = await resp.text();
-      return new Response(JSON.stringify({ error: t }), {
-        status: resp.status,
+      return new Response(JSON.stringify({ error: replyResult.body }), {
+        status: replyResult.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await resp.json();
-    // apifreellm.com returns { success: true, response: "..." }
-    const reply = data.response ?? "";
+    const reply = replyResult.text;
     return new Response(JSON.stringify({ reply, training_materials_used: trainingCounts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

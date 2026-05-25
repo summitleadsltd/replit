@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { rescoreSingleContact } from "@/lib/lead-scoring";
 import type { QueueExportLead } from "@/lib/export-queue-csv";
-import { appToday } from "@/lib/timezone";
+import { appToday, appTodayBounds } from "@/lib/timezone";
 
 export interface QueueContact {
   id: string; // campaign_contacts.id
@@ -104,15 +104,19 @@ export function useDialerQueue(campaignId: string | null, queueFilter?: QueueFil
     }
 
     const now = new Date().toISOString();
+    const estDayStart = appTodayBounds().start;
     const { data: session } = await supabase.auth.getSession();
     const myUserId = session?.session?.user?.id || null;
 
     // Build base query for stats — filter by assigned_agent_id (mine or unassigned)
+    // and apply the same "not yet called today (EST)" rule as resolveNextLead so
+    // that "Remaining Today" matches what the dialer will actually serve.
     let remainingQuery = supabase
       .from("campaign_contacts")
       .select("id", { count: "exact", head: true })
       .eq("campaign_id", campaignId)
-      .eq("dial_status", "pending");
+      .eq("dial_status", "pending")
+      .or(`last_called_at.is.null,last_called_at.lt.${estDayStart}`);
 
     if (myUserId) {
       remainingQuery = remainingQuery.or(`assigned_agent_id.is.null,assigned_agent_id.eq.${myUserId}`);
@@ -188,70 +192,90 @@ export function useDialerQueue(campaignId: string | null, queueFilter?: QueueFil
     const now = new Date().toISOString();
 
     // ── DAILY ASSIGNMENTS MODE ─────────────────────────────────
-    // When useDailyAssignments is true, pull from daily_lead_assignments
-    if (queueFilter?.useDailyAssignments) {
+    // When useDailyAssignments is true (or when an admin has pushed leads to
+    // daily_lead_assignments for the agent today), serve those first.
+    // We also auto-activate this mode when the standard caller did NOT
+    // specify a queueFilter at all, so the Dialer page picks up daily
+    // assignments without the agent toggling anything.
+    {
       const { data: session } = await supabase.auth.getSession();
-      const myUserId = queueFilter.agentId || session?.session?.user?.id || null;
+      const sessionUserId = session?.session?.user?.id || null;
+      const dailyAgentId = queueFilter?.agentId || sessionUserId;
       const today = appToday(); // Eastern calendar day
 
-      const { data: assignment, error: assignError } = await supabase
-        .from("daily_lead_assignments")
-        .select("id, contact_id, status, contacts!inner(id, first_name, last_name, phone_e164, phone_raw, address, city, state, zip_code, county, title, owner_renter, home_value, household_income, credit_rating, cool_notes, timezone, lead_status)")
-        .eq("agent_id", myUserId)
-        .eq("assigned_date", today)
-        .eq("status", "pending")
-        .eq("language", queueFilter.language || "en")
-        .order("assigned_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (assignError) {
-        if (import.meta.env.DEV) console.error("[Queue] Daily assignment query error:", assignError.message);
-        return null;
-      }
-
-      if (!assignment) {
-        if (import.meta.env.DEV) console.log("[Queue] No daily assignments remaining");
-        return null;
-      }
-
-      const c = (assignment as any).contacts;
-      const lead: QueueContact = {
-        id: assignment.id,
-        contact_id: c.id,
-        first_name: c.first_name,
-        last_name: c.last_name,
-        phone_e164: c.phone_e164,
-        phone_raw: c.phone_raw,
-        address: c.address,
-        city: c.city,
-        state: c.state,
-        zip_code: c.zip_code,
-        county: c.county,
-        title: c.title,
-        owner_renter: c.owner_renter,
-        home_value: c.home_value,
-        household_income: c.household_income,
-        credit_rating: c.credit_rating,
-        cool_notes: c.cool_notes,
-        timezone: c.timezone,
-        lead_status: c.lead_status,
-        attempts: 0,
-        dial_status: lockInDb ? "dialing" : "pending",
-      };
-
-      // Update assignment status if locking
-      if (lockInDb) {
-        await supabase
+      const shouldTryDaily = !!dailyAgentId;
+      if (shouldTryDaily) {
+        let dailyQuery = supabase
           .from("daily_lead_assignments")
-          .update({ status: "contacted", locked_at: new Date().toISOString() })
-          .eq("id", assignment.id);
+          .select(
+            "id, contact_id, status, assigned_at, contacts!inner(id, first_name, last_name, phone_e164, phone_raw, address, city, state, zip_code, county, title, owner_renter, home_value, household_income, credit_rating, cool_notes, timezone, lead_status)",
+          )
+          .eq("agent_id", dailyAgentId)
+          .eq("assigned_date", today)
+          .eq("status", "pending")
+          .order("assigned_at", { ascending: true })
+          .limit(10);
+
+        // Optional language filter — applied only when caller asked for it.
+        if (queueFilter?.language) {
+          dailyQuery = dailyQuery.eq("language", queueFilter.language);
+        }
+
+        const { data: assignments, error: assignError } = await dailyQuery;
+
+        if (assignError) {
+          if (import.meta.env.DEV) console.error("[Queue] Daily assignment query error:", assignError.message);
+        } else if (assignments && assignments.length > 0) {
+          // Skip ones we've already dialed in this session
+          const excludeIds = new Set(recentlyDialedRef.current);
+          const assignment = assignments.find((a: any) => !excludeIds.has(a.id)) ?? null;
+          if (assignment) {
+            const c = (assignment as any).contacts;
+            const lead: QueueContact = {
+              id: assignment.id,
+              contact_id: c.id,
+              first_name: c.first_name,
+              last_name: c.last_name,
+              phone_e164: c.phone_e164,
+              phone_raw: c.phone_raw,
+              address: c.address,
+              city: c.city,
+              state: c.state,
+              zip_code: c.zip_code,
+              county: c.county,
+              title: c.title,
+              owner_renter: c.owner_renter,
+              home_value: c.home_value,
+              household_income: c.household_income,
+              credit_rating: c.credit_rating,
+              cool_notes: c.cool_notes,
+              timezone: c.timezone,
+              lead_status: c.lead_status,
+              attempts: 0,
+              dial_status: lockInDb ? "dialing" : "pending",
+            };
+
+            if (lockInDb) {
+              await supabase
+                .from("daily_lead_assignments")
+                .update({ status: "contacted", locked_at: new Date().toISOString() })
+                .eq("id", assignment.id);
+            }
+
+            const elapsed = (performance.now() - t0).toFixed(0);
+            if (import.meta.env.DEV) console.log(`[Queue] ✅ Daily assignment in ${elapsed}ms: ${lead.first_name} ${lead.last_name}`);
+            return lead;
+          }
+        } else if (import.meta.env.DEV && queueFilter?.useDailyAssignments) {
+          console.log("[Queue] No daily assignments remaining — falling through to campaign queue");
+        }
       }
 
-      const elapsed = (performance.now() - t0).toFixed(0);
-      if (import.meta.env.DEV) console.log(`[Queue] ✅ Resolved daily assignment in ${elapsed}ms: ${lead.first_name} ${lead.last_name}`);
-
-      return lead;
+      // If the caller *explicitly* asked for daily-only mode, do not fall
+      // through to the standard campaign_contacts queue.
+      if (queueFilter?.useDailyAssignments) {
+        return null;
+      }
     }
 
     // ── STANDARD CAMPAIGN CONTACTS MODE ─────────────────────────
@@ -268,12 +292,19 @@ export function useDialerQueue(campaignId: string | null, queueFilter?: QueueFil
 
     // Query candidates — uses idx_cc_queue_lookup partial index.
     // Pull a wider candidate window so suppression filters still leave us choices.
+    //
+    // Anti-recycle rule: exclude any campaign_contact whose `last_called_at`
+    // falls inside today's Eastern calendar day. This prevents an agent (or
+    // anyone else) from seeing the same lead twice within the same operating
+    // day, even after a page refresh that wipes the in-memory recent-list.
+    const estDayStart = appTodayBounds().start;
     let ccQuery = supabase
       .from("campaign_contacts")
       .select("id, contact_id, attempts, dial_status, contact_language, assigned_agent_id, contacts!inner(id, locked_to_agent_id, phone_e164, company_id)")
       .eq("campaign_id", campaignId)
       .eq("dial_status", "pending")
-      .or(`next_eligible_at.is.null,next_eligible_at.lte.${now}`);
+      .or(`next_eligible_at.is.null,next_eligible_at.lte.${now}`)
+      .or(`last_called_at.is.null,last_called_at.lt.${estDayStart}`);
 
     // Only show leads assigned to me or unassigned (respects admin assignment)
     if (myUserId) {

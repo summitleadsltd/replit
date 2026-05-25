@@ -135,31 +135,57 @@ Deno.serve(async (req) => {
       return json({ error: "No transcript found for this call attempt" }, 400);
     }
 
-    const apiKey = getEnv("API_FREE_LLM_API_KEY");
-    const model = Deno.env.get("API_FREE_LLM_MODEL") ?? "default";
-    const appUrl = Deno.env.get("APP_URL") ?? "https://crm.summitleadsltd.com";
+    // Prefer OpenAI direct (set OPENAI_API_KEY in Supabase Edge Function secrets).
+    // Fall back to the api-free-llm endpoint when only the legacy key is configured.
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+    const apiKey = Deno.env.get("API_FREE_LLM_API_KEY");
+    const legacyModel = Deno.env.get("API_FREE_LLM_MODEL") ?? "default";
+    if (!openaiKey && !apiKey) {
+      return json({ error: "AI service not configured. Add OPENAI_API_KEY to Supabase Edge Function secrets." }, 500);
+    }
 
-    const aiRes = await fetch("https://api.free-llm-api.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 800,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: transcript },
-        ],
-      }),
-    });
+    let aiRes: Response;
+    if (openaiKey) {
+      aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: openaiModel,
+          max_tokens: 800,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: transcript },
+          ],
+        }),
+      });
+    } else {
+      aiRes = await fetch("https://api.free-llm-api.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: legacyModel,
+          max_tokens: 800,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: transcript },
+          ],
+        }),
+      });
+    }
 
     if (!aiRes.ok) {
       if (aiRes.status === 429) return json({ error: "Rate limits exceeded, please try again later." }, 429);
       const text = await aiRes.text();
-      console.error("[ai-call-summary] api-free-llm API error:", aiRes.status, text);
-      return json({ error: "api-free-llm API error", details: text }, aiRes.status >= 500 ? 502 : aiRes.status);
+      console.error("[ai-call-summary] AI provider error:", aiRes.status, text);
+      return json({ error: "AI provider error", details: text }, aiRes.status >= 500 ? 502 : aiRes.status);
     }
 
     const aiData = await aiRes.json();
@@ -170,7 +196,7 @@ Deno.serve(async (req) => {
     try {
       parsed = parseAnalysis(textBlock ?? "{}");
     } catch (parseErr) {
-      console.error("[ai-call-summary] invalid OpenRouter JSON:", parseErr, textBlock);
+      console.error("[ai-call-summary] invalid AI JSON:", parseErr, textBlock);
       return json({ error: "AI response was not valid JSON" }, 502);
     }
 
@@ -180,7 +206,7 @@ Deno.serve(async (req) => {
       sentiment: parsed.sentiment ?? null,
       objections: parsed.objections ?? [],
       created_at: new Date().toISOString(),
-      summary_source: "api-free-llm",
+      summary_source: openaiKey ? "openai" : "api-free-llm",
       generation_status: "complete",
     });
 

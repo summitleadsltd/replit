@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { appToday } from "@/lib/timezone";
 
 interface Campaign { id: string; name: string }
 interface Availability { available_leads: number; assigned_leads: number; total_leads: number }
@@ -34,7 +35,7 @@ export default function LeadAssignment() {
     })();
   }, []);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => appToday(), []);
 
   const refresh = async (cid: string) => {
     if (!cid) return;

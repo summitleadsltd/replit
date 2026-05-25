@@ -8,9 +8,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Disc3, Play, Download, Square, Search, Loader2, AlertCircle } from "lucide-react";
+import { Disc3, Play, Download, Square, Search, Loader2, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
-import { toESTDate } from "@/lib/timezone";
+import { toESTDate, appToday } from "@/lib/timezone";
 import { ReportFilters, type DateRange, rangeFromPreset } from "@/components/reports/ReportFilters";
 import { EmptyState } from "@/components/reports/EmptyState";
 import { exportToCsv } from "@/lib/export-csv";
@@ -33,6 +33,8 @@ interface RecordingRow {
   agent_id: string | null;
 }
 
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
 function fmtDuration(s: number | null) {
   if (!s) return "0:00";
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -48,11 +50,19 @@ export default function Recordings() {
   const [search, setSearch] = useState("");
 
   const [recordings, setRecordings] = useState<RecordingRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [range, selectedCampaign, selectedAgent, selectedDispo, search, pageSize]);
 
   // Reference data
   useEffect(() => {
@@ -88,15 +98,17 @@ export default function Recordings() {
       setLoading(true);
       setErrorMessage(null);
       try {
-        const { data: simpleData, error: simpleError } = await supabase
+        const offset = page * pageSize;
+        const { data: simpleData, error: simpleError, count } = await supabase
           .from("call_recordings")
-          .select("id, duration_seconds, format, created_at, call_attempt_id, recording_url, download_url, agent_id, campaign_id")
+          .select("id, duration_seconds, format, created_at, call_attempt_id, recording_url, agent_id, campaign_id", { count: "exact" })
           .gte("created_at", fromIso)
           .lte("created_at", toIso)
           .order("created_at", { ascending: false })
-          .limit(500);
-        
+          .range(offset, offset + pageSize - 1);
+
         if (simpleError) throw simpleError;
+        setTotalCount(count ?? 0);
 
         // Enrich with call attempt data (contact name, disposition, outcome)
         const attemptIds = (simpleData || []).map((r: any) => r.call_attempt_id).filter(Boolean);
@@ -133,8 +145,8 @@ export default function Recordings() {
             format: r.format,
             created_at: r.created_at,
             call_attempt_id: r.call_attempt_id,
-            audio_url: r.download_url || r.recording_url || null,
-            has_audio: Boolean(r.download_url || r.recording_url),
+            audio_url: r.recording_url || null,
+            has_audio: Boolean(r.recording_url),
             contact_name: contactName || "Unknown",
             agent_name: r.agent_id ? profileMap.get(r.agent_id) || "—" : "—",
             disposition: attempt?.disposition || null,
@@ -154,7 +166,7 @@ export default function Recordings() {
       }
     };
     fetchRecordings();
-  }, [range]);
+  }, [range, page, pageSize]);
 
   // Available dispositions in this dataset
   const dispositionOptions = useMemo(() => {
@@ -229,7 +241,7 @@ export default function Recordings() {
 
   const handleExport = () => {
     exportToCsv(
-      `recordings-${range.from.toISOString().slice(0, 10)}-to-${range.to.toISOString().slice(0, 10)}`,
+      `recordings-${appToday()}`,
       filtered.map((r) => ({
         date: format(toESTDate(r.created_at), "yyyy-MM-dd HH:mm"),
         contact: r.contact_name,
@@ -258,7 +270,9 @@ export default function Recordings() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Recordings</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {loading ? "Loading…" : `${filtered.length} of ${recordings.length} recordings in range`}
+          {loading
+            ? "Loading…"
+            : `Showing ${filtered.length} of ${recordings.length} on this page · ${totalCount} total in range`}
         </p>
       </div>
 
@@ -328,13 +342,17 @@ export default function Recordings() {
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Disc3}
-              title="No recordings match your filters"
-              description="Try widening the date range, clearing filters, or making more calls."
+              title={recordings.length === 0 ? "No recordings yet" : "No recordings match your filters"}
+              description={
+                recordings.length === 0
+                  ? "Recordings will appear here once Telnyx finishes uploading audio for completed calls."
+                  : "Try widening the date range, clearing filters, or making more calls."
+              }
             />
           ) : (
             <div className="space-y-3">
               {filtered.map((r) => (
-                <div key={r.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div key={r.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg" data-testid="recording-row">
                   <div className="flex items-center gap-3 min-w-0">
                     <Button
                       variant="outline"
@@ -374,6 +392,47 @@ export default function Recordings() {
                   </Button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {!loading && totalCount > 0 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-border" data-testid="recordings-pagination">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Rows per page</span>
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-7 w-[70px]" data-testid="recordings-page-size">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map((o) => (
+                      <SelectItem key={o} value={String(o)}>{o}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="ml-3">
+                  Page {page + 1} of {Math.max(1, Math.ceil(totalCount / pageSize))}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 0 || loading}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  data-testid="recordings-prev"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />Prev
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={loading || (page + 1) * pageSize >= totalCount}
+                  onClick={() => setPage((p) => p + 1)}
+                  data-testid="recordings-next"
+                >
+                  Next<ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

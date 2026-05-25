@@ -197,6 +197,31 @@ export function appTodayBounds(): { start: string; end: string } {
 }
 
 /**
+ * Returns a Date object representing the start of "today" in EST as a UTC instant.
+ * Use this as a drop-in replacement for `startOfDay(new Date())` whenever you
+ * need an EST-aware "today" anchor in the browser.
+ */
+export function startOfAppToday(): Date {
+  return new Date(appTodayBounds().start);
+}
+
+/**
+ * Returns true when two date inputs fall on the same Eastern calendar day.
+ * Drop-in replacement for date-fns `isSameDay` whenever EST-correctness matters.
+ */
+export function isSameAppDay(a: Date | string, b: Date | string): boolean {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const da = typeof a === "string" ? new Date(a) : a;
+  const db = typeof b === "string" ? new Date(b) : b;
+  return fmt.format(da) === fmt.format(db);
+}
+
+/**
  * Convert a user-entered Eastern wall-clock datetime (the value from a
  * date/time <input> or picker) to a UTC ISO string for DB storage.
  *

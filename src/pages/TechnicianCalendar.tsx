@@ -10,8 +10,13 @@ import {
   CalendarDays,
   Pencil,
 } from "lucide-react";
-import { format, addDays, startOfDay, isSameDay } from "date-fns";
-import { toESTDate } from "@/lib/timezone";
+import { format, addDays } from "date-fns";
+import {
+  toESTDate,
+  startOfAppToday,
+  appDayBounds,
+  isSameAppDay,
+} from "@/lib/timezone";
 import { useTechnicians, type Technician } from "@/hooks/use-technicians";
 import {
   useTechAppointments,
@@ -47,7 +52,7 @@ export default function TechnicianCalendar() {
   const isClient = role === "client";
   const isTechnician = role === "technician";
   const readOnly = isClient || isTechnician;
-  const [date, setDate] = useState(() => startOfDay(new Date()));
+  const [date, setDate] = useState(() => startOfAppToday());
   const [techModalOpen, setTechModalOpen] = useState(false);
   const [editingTech, setEditingTech] = useState<Technician | null>(null);
   const [apptModalOpen, setApptModalOpen] = useState(false);
@@ -56,8 +61,23 @@ export default function TechnicianCalendar() {
   const [manageOpen, setManageOpen] = useState(false);
 
   const { data: technicians = [], isLoading: loadingTechs } = useTechnicians();
-  const dayStart = useMemo(() => startOfDay(date).toISOString(), [date]);
-  const dayEnd = useMemo(() => addDays(startOfDay(date), 1).toISOString(), [date]);
+
+  // Compute the Eastern-day bounds for `date` so the appointments query
+  // catches everything scheduled inside that ET calendar day, regardless of
+  // the agent's browser timezone (Pacific, Mountain, UTC, etc.).
+  const isoDay = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    return fmt.format(date);
+  }, [date]);
+  const { start: dayStart, end: dayEnd } = useMemo(
+    () => appDayBounds(isoDay),
+    [isoDay],
+  );
   const { data: appointments = [] } = useTechAppointments(dayStart, dayEnd);
 
   const activeTechs = technicians.filter((t) => t.is_active);
@@ -82,7 +102,7 @@ export default function TechnicianCalendar() {
   const apptsByTech = useMemo(() => {
     const map = new Map<string, TechAppointment[]>();
     appointments
-      .filter((a) => isSameDay(new Date(a.start_time), date))
+      .filter((a) => isSameAppDay(a.start_time, date))
       .forEach((a) => {
         const arr = map.get(a.technician_id) ?? [];
         arr.push(a);
@@ -94,8 +114,8 @@ export default function TechnicianCalendar() {
   const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
 
   const blockStyle = (a: TechAppointment) => {
-    const s = new Date(a.start_time);
-    const e = new Date(a.end_time);
+    const s = toESTDate(a.start_time);
+    const e = toESTDate(a.end_time);
     const startHrs = s.getHours() + s.getMinutes() / 60;
     const endHrs = e.getHours() + e.getMinutes() / 60;
     const top = (startHrs - HOUR_START) * SLOT_HEIGHT;
@@ -158,7 +178,7 @@ export default function TechnicianCalendar() {
           <Button size="icon" variant="outline" onClick={() => setDate(addDays(date, 1))}>
             <ChevronRight className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDate(startOfDay(new Date()))}>
+          <Button variant="ghost" size="sm" onClick={() => setDate(startOfAppToday())}>
             Today
           </Button>
         </div>
