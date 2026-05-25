@@ -1,0 +1,789 @@
+# Summit Leads CRM - Corrected Architecture Diagram
+# Updated: May 18, 2026
+#
+# Fixes applied:
+#   1. ai_call_summary now points to api-free-llm API
+#   2. useDialerQueue connected to campaign_contacts, dispositions, power_dialer_next
+#   3. power_dialer_next and predictive_dialer_engine fully connected
+#   4. get_recording_url connected to recordings table and Supabase Storage
+#   5. livekit_webhook connected to call_logs, webhook_events, ai_call_summary
+#   6. call_monitor connected to call_monitoring_sessions
+#   7. Sequence diagram: token fetched directly from edge function (no double-Supabase hop)
+#   8. Post-call webhook + AI summary sequence added
+#   9. Data flow: CSV Import → Contact (was reversed); Manual Entry path added
+#  10. DNC check gate added between Queue and Call
+#  11. Recordings and Reports pages added to role access diagram
+#  12. Tech stack: OpenRouter replaced with Anthropic API
+#  13. NEW diagram: Confirmer appointment confirmation workflow
+#  14. NEW diagram: Confirmer lifecycle sequence (D-1 trigger → status update in tech calendar)
+
+---
+
+```mermaid
+graph TB
+    %% ─────────────────────────────────────────
+    %% DIAGRAM 1 — Main Architecture
+    %% ─────────────────────────────────────────
+
+    subgraph "Frontend - React TypeScript"
+        App[App.tsx<br/>Main Application Entry]
+        AuthProvider[AuthProvider<br/>Authentication Context]
+        AppLayout[AppLayout<br/>Main Layout Wrapper]
+        AppSidebar[AppSidebar<br/>Navigation Sidebar]
+        RoleGuard[RoleGuard<br/>Route Protection]
+
+        App --> AuthProvider
+        AuthProvider --> AppLayout
+        AppLayout --> AppSidebar
+        AppLayout --> RoleGuard
+    end
+
+    subgraph "Pages - 32 Pages"
+        Dashboard[Dashboard<br/>Home Dashboard]
+        Auth[Auth<br/>Login/Register]
+        AuthCallback[AuthCallback<br/>OAuth Handler]
+        SetPassword[SetPassword<br/>Password Setup]
+
+        Contacts[Contacts<br/>Contact Management]
+        ContactProfile[ContactProfile<br/>Contact Details]
+
+        Campaigns[Campaigns<br/>Campaign Management]
+        CampaignDetail[CampaignDetail<br/>Campaign Details]
+
+        Dialer[Dialer<br/>Power Dialer Interface]
+        DialerScripts[DialerScripts<br/>Call Scripts]
+
+        Appointments[Appointments<br/>All Appointments]
+        Callbacks[Callbacks<br/>Daily Lead Queue]
+        ConfirmerQueue[ConfirmerQueue<br/>Confirmation Queue]
+
+        Technicians[Technicians<br/>Technician List]
+        TechnicianCalendar[TechnicianCalendar<br/>Tech Calendar]
+        TechnicianDashboard[TechnicianDashboard<br/>Tech Dashboard]
+        TechnicianAvailability[TechnicianAvailability<br/>Tech Availability]
+
+        Training[TrainingHub<br/>Training Center]
+        Tasks[FollowUpTasks<br/>Task Management]
+
+        Reports[Reports<br/>Analytics Reports]
+        Recordings[Recordings<br/>Call Recordings]
+
+        UserManagement[UserManagement<br/>User Admin]
+        UserProfile[UserProfile<br/>User Profile]
+
+        LeadAssignment[LeadAssignment<br/>Lead Distribution]
+        Clients[Clients<br/>Client Management]
+        ClientProfile[ClientProfile<br/>Client Details]
+        ClientPortal[ClientPortal<br/>Client Portal]
+
+        TeamDashboard[TeamDashboard<br/>Team Monitoring]
+        QaDashboard[QaDashboard<br/>QA Scoring]
+        AgentPerformance[AgentPerformance<br/>Performance Metrics]
+        MyFeedback[MyFeedback<br/>Agent Feedback]
+
+        Imports[Imports<br/>Data Import]
+        CrmSettings[CrmSettings<br/>System Settings]
+        NotFound[NotFound<br/>404 Page]
+    end
+
+    subgraph "Components - Organised by Domain"
+        subgraph "Admin Components"
+            UnassignedProfilesBanner[UnassignedProfilesBanner]
+        end
+        subgraph "Agent Components"
+            AgentStatusSelector[AgentStatusSelector]
+        end
+        subgraph "Campaign Components"
+            CampaignModal[CampaignModal]
+            CampaignNumberPool[CampaignNumberPool]
+            CampaignPhonePool[CampaignPhonePool]
+            PredictiveDialerControl[PredictiveDialerControl]
+            PredictiveTickAuditLog[PredictiveTickAuditLog]
+        end
+        subgraph "Client Components"
+            ClientDetailsTab[ClientDetailsTab]
+            ClientNotesTab[ClientNotesTab]
+            ClientPhotosTab[ClientPhotosTab]
+            JobCardHistoryTab[JobCardHistoryTab]
+        end
+        subgraph "Contact Components"
+            ContactModal[ContactModal]
+            ContactProfileDrawer[ContactProfileDrawer]
+            DeleteConfirmDialog[DeleteConfirmDialog]
+            EditContactModal[EditContactModal]
+            PhoneE164Preview[PhoneE164Preview]
+        end
+        subgraph "Dialer Components"
+            AppointmentModal[AppointmentModal]
+            AudioControls[AudioControls]
+            CallHistoryPanel[CallHistoryPanel]
+            CallTimeline[CallTimeline]
+            CallbackModal[CallbackModal]
+            ContactActivityTimeline[ContactActivityTimeline]
+            DialPad[DialPad]
+            DispositionPanel[DispositionPanel]
+            DtmfPad[DtmfPad]
+            LeadCard[LeadCard]
+            QualificationForm[QualificationForm]
+            RetryCountdown[RetryCountdown]
+            ScriptDrawer[ScriptDrawer]
+            WrapUpModal[WrapUpModal]
+        end
+        subgraph "Import Components"
+            ColumnMapper[ColumnMapper]
+            ImportDeleteDialog[ImportDeleteDialog]
+        end
+        subgraph "Common Components"
+            DataPagination[DataPagination]
+            PageHeader[PageHeader]
+            StatusPill[StatusPill]
+        end
+        subgraph "Layout Components"
+            AppLayoutComp[AppLayout]
+            AppSidebarComp[AppSidebar]
+            RoleGuardComp[RoleGuard]
+        end
+        subgraph "Settings Components"
+            ApiKeysTab[ApiKeysTab]
+            AutoAssignTab[AutoAssignTab]
+            DialerSettingsTab[DialerSettingsTab]
+            GeneralSettingsTab[GeneralSettingsTab]
+            NumberPoolTab[NumberPoolTab]
+            QueueRulesTab[QueueRulesTab]
+            RoutingTab[RoutingTab]
+        end
+        subgraph "Team Components"
+            AgentActivityCard[AgentActivityCard]
+            CallMonitorPanel[CallMonitorPanel]
+            LiveAgentsList[LiveAgentsList]
+        end
+        subgraph "Technician Components"
+            ImageUpload[ImageUpload]
+            JobCardForm[JobCardForm]
+            JobCardList[JobCardList]
+            TechAvailabilityCalendar[TechAvailabilityCalendar]
+        end
+        subgraph "UI Components"
+            shadcn_ui[shadcn/ui Components<br/>40+ Reusable Components]
+        end
+    end
+
+    subgraph "Hooks - Custom React Hooks"
+        useAuth[useAuth<br/>Authentication & Authorization]
+        useAgentStatus[useAgentStatus<br/>Agent Status Management]
+        useAppointments[useAppointments<br/>Appointment Data]
+        useAuditLog[useAuditLog<br/>Audit Logging]
+        useCampaignPhones[useCampaignPhones<br/>Phone Number Pool]
+        useContacts[useContacts<br/>Contact Data]
+        useDialerQueue[useDialerQueue<br/>Dialer Queue Logic]
+        useLiveKitClient[useLiveKitClient<br/>WebRTC Communication]
+        useMobileAuth[useMobileAuth<br/>Mobile Authentication]
+        useReports[useReports<br/>Report Data]
+        useTechnicianAppointments[useTechnicianAppointments<br/>Tech Appointments]
+        useTechnicians[useTechnicians<br/>Technician Data]
+        useToast[useToast<br/>Toast Notifications]
+    end
+
+    subgraph "Database - Supabase PostgreSQL"
+        subgraph "User Management"
+            profiles[profiles<br/>User Profiles]
+            user_roles[user_roles<br/>Role Assignments]
+            companies[companies<br/>Company/Organisation]
+        end
+        subgraph "Contact & Lead Management"
+            contacts[contacts<br/>Contact Records]
+            contact_phone_numbers[contact_phone_numbers<br/>Contact Phones]
+            campaign_contacts[campaign_contacts<br/>Campaign-Lead Mapping]
+            lead_qualifications[lead_qualifications<br/>Lead Qualification Data]
+            follow_up_tasks[follow_up_tasks<br/>Follow-up Tasks]
+            dnc_entries[dnc_entries<br/>Do Not Call List]
+        end
+        subgraph "Campaign Management"
+            campaigns[campaigns<br/>Campaign Records]
+            campaign_agents[campaign_agents<br/>Campaign-Agent Assignment]
+            campaign_scripts[campaign_scripts<br/>Call Scripts]
+            campaign_phone_numbers[campaign_phone_numbers<br/>Phone Number Pool]
+            campaign_caller_ids[campaign_caller_ids<br/>Caller ID Pool]
+            caller_ids[caller_ids<br/>Caller ID Records]
+        end
+        subgraph "Call Management"
+            call_logs[call_logs<br/>Call Records]
+            call_attempts[call_attempts<br/>Call Attempts]
+            call_sessions[call_sessions<br/>Call Sessions]
+            call_events[call_events<br/>Call Events]
+            recordings[recordings<br/>Call Recordings]
+            dial_sessions[dial_sessions<br/>Dial Sessions]
+            dialer_logs[dialer_logs<br/>Dialer Logs]
+            webhook_events[webhook_events<br/>Webhook Logs]
+        end
+        subgraph "Appointment Management"
+            appointments[appointments<br/>Sales Appointments]
+            technician_appointments[technician_appointments<br/>Tech Calendar Entries]
+            appointment_status_history[appointment_status_history<br/>Status Change Log]
+        end
+        subgraph "Client Management"
+            clients[clients<br/>Client Records]
+            client_accounts[client_accounts<br/>Client Accounts]
+            client_users[client_users<br/>Client User Access]
+            job_cards[job_cards<br/>Job Cards]
+            client_notes[client_notes<br/>Client Notes]
+            client_photos[client_photos<br/>Client Photos]
+            job_card_images[job_card_images<br/>Job Card Images]
+            client_notifications[client_notifications<br/>Notifications]
+        end
+        subgraph "Technician Management"
+            technicians[technicians<br/>Technician Records]
+            technician_availability[technician_availability<br/>Availability Schedules]
+        end
+        subgraph "Quality Assurance"
+            qa_scores[qa_scores<br/>QA Scores]
+            agent_feedback[agent_feedback<br/>Agent Feedback]
+            call_monitoring_sessions[call_monitoring_sessions<br/>Monitoring Sessions]
+        end
+        subgraph "AI & Analytics"
+            ai_call_summaries[ai_call_summaries<br/>AI-Generated Summaries]
+            ai_training_materials[ai_training_materials<br/>Training Materials]
+            training_simulations[training_simulations<br/>Training Simulations]
+        end
+        subgraph "System & Audit"
+            dispositions[dispositions<br/>Call Dispositions]
+            callbacks[callbacks<br/>Callback Records]
+            import_jobs[import_jobs<br/>Import Jobs]
+            import_errors[import_errors<br/>Import Errors]
+            admin_audit_log[admin_audit_log<br/>Admin Actions]
+            audit_events[audit_events<br/>Audit Trail]
+            daily_reports[daily_reports<br/>Daily Reports]
+            phone_number_stats[phone_number_stats<br/>Phone Statistics]
+            telephony_providers[telephony_providers<br/>Provider Config]
+        end
+    end
+
+    subgraph "Edge Functions - Supabase"
+        ai_call_summary[ai-call-summary<br/>AI Call Summarisation]
+        call_monitor[call-monitor<br/>Call Monitoring]
+        create_user[create-user<br/>User Creation]
+        delete_all_contacts[delete-all-contacts<br/>Bulk Contact Delete]
+        delete_import[delete-import<br/>Import Deletion]
+        get_recording_url[get-recording-url<br/>Recording Access]
+        livekit_call_control[livekit-call-control<br/>LiveKit Call Control]
+        livekit_token[livekit-token<br/>LiveKit Token Generation]
+        livekit_webhook[livekit-webhook<br/>LiveKit Webhook Handler]
+        manage_user[manage-user<br/>User Management]
+        power_dialer_next[power-dialer-next<br/>Power Dialer Logic]
+        predictive_dialer_engine[predictive-dialer-engine<br/>Predictive Dialing]
+        schedule_best_technician[schedule-best-technician<br/>Tech Scheduling]
+        training_simulation[training-simulation<br/>Training Simulation]
+    end
+
+    subgraph "External Integrations"
+        Supabase[Supabase<br/>Database & Auth]
+        LiveKit[LiveKit Cloud<br/>WebRTC & SIP]
+        Telnyx[Telnyx<br/>SIP Trunking & PSTN]
+        ApiFreeLLM[api-free-llm API<br/>Free LLM API]
+        OpenAI[OpenAI<br/>Transcription]
+    end
+
+    subgraph "Mobile App"
+        TechnicianMobile[Technician Mobile App<br/>Capacitor/React Native]
+    end
+
+    %% ── Page routing ──────────────────────────────────────────────────────────
+    AppLayout --> Dashboard
+    AppLayout --> Auth
+    AppLayout --> Contacts
+    AppLayout --> Campaigns
+    AppLayout --> Dialer
+    AppLayout --> Appointments
+    AppLayout --> Technicians
+    AppLayout --> Training
+    AppLayout --> Reports
+    AppLayout --> Recordings
+    AppLayout --> UserManagement
+    AppLayout --> ClientPortal
+    AppLayout --> ConfirmerQueue
+
+    %% ── Auth & WebRTC ─────────────────────────────────────────────────────────
+    useAuth --> Supabase
+    useLiveKitClient --> LiveKit
+    useLiveKitClient --> Telnyx
+
+    %% ── Page → Hook bindings ──────────────────────────────────────────────────
+    Dialer --> useLiveKitClient
+    Dialer --> useDialerQueue
+    Appointments --> useAppointments
+    ConfirmerQueue --> useAppointments
+    Contacts --> useContacts
+    Technicians --> useTechnicians
+    Recordings --> get_recording_url
+
+    %% ── FIX 2: useDialerQueue database connections ────────────────────────────
+    useDialerQueue --> campaign_contacts
+    useDialerQueue --> dispositions
+    useDialerQueue --> dnc_entries
+    useDialerQueue --> power_dialer_next
+
+    %% ── FIX 3: power_dialer_next connections ──────────────────────────────────
+    power_dialer_next --> campaign_contacts
+    power_dialer_next --> contacts
+    power_dialer_next --> call_logs
+    power_dialer_next --> dialer_logs
+
+    %% ── FIX 3: predictive_dialer_engine connections ───────────────────────────
+    predictive_dialer_engine --> campaign_contacts
+    predictive_dialer_engine --> dial_sessions
+    predictive_dialer_engine --> dialer_logs
+
+    %% ── FIX 7: livekit_webhook → downstream tables ───────────────────────────
+    livekit_webhook --> call_logs
+    livekit_webhook --> webhook_events
+    livekit_webhook --> recordings
+    livekit_webhook --> ai_call_summary
+
+    %% ── FIX 4: get_recording_url connected to recordings & storage ────────────
+    get_recording_url --> recordings
+
+    %% ── FIX 6: call_monitor connected to monitoring sessions ──────────────────
+    call_monitor --> call_monitoring_sessions
+
+    %% ── FIX 1: ai_call_summary → Anthropic API (not OpenRouter) ──────────────
+    ai_call_summary --> AnthropicAPI
+    ai_call_summary --> OpenAI
+    ai_call_summary --> ai_call_summaries
+
+    %% ── schedule_best_technician connections ──────────────────────────────────
+    schedule_best_technician --> technicians
+    schedule_best_technician --> technician_availability
+    schedule_best_technician --> technician_appointments
+
+    %% ── useAppointments: covers both Sales & Tech calendar ────────────────────
+    useAppointments --> appointments
+    useAppointments --> technician_appointments
+    useAppointments --> appointment_status_history
+
+    %% ── LiveKit edge functions ────────────────────────────────────────────────
+    livekit_token --> LiveKit
+    livekit_call_control --> LiveKit
+    livekit_webhook --> LiveKit
+    livekit_webhook --> Telnyx
+
+    %% ── Mobile ────────────────────────────────────────────────────────────────
+    TechnicianMobile --> Supabase
+    TechnicianMobile --> LiveKit
+
+    %% ── Styling ───────────────────────────────────────────────────────────────
+    classDef frontend fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff
+    classDef pages fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef components fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
+    classDef hooks fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
+    classDef database fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
+    classDef edgeFunctions fill:#ec4899,stroke:#db2777,stroke-width:2px,color:#fff
+    classDef external fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#fff
+    classDef mobile fill:#14b8a6,stroke:#0d9488,stroke-width:2px,color:#fff
+
+    class App,AuthProvider,AppLayout,AppSidebar,RoleGuard frontend
+    class Dashboard,Auth,AuthCallback,SetPassword,Contacts,ContactProfile,Campaigns,CampaignDetail,Dialer,DialerScripts,Appointments,Callbacks,ConfirmerQueue,Technicians,TechnicianCalendar,TechnicianDashboard,TechnicianAvailability,Training,Tasks,Reports,Recordings,UserManagement,UserProfile,LeadAssignment,Clients,ClientProfile,ClientPortal,TeamDashboard,QaDashboard,AgentPerformance,MyFeedback,Imports,CrmSettings,NotFound pages
+    class UnassignedProfilesBanner,AgentStatusSelector,CampaignModal,CampaignNumberPool,CampaignPhonePool,PredictiveDialerControl,PredictiveTickAuditLog,ClientDetailsTab,ClientNotesTab,ClientPhotosTab,JobCardHistoryTab,ContactModal,ContactProfileDrawer,DeleteConfirmDialog,EditContactModal,PhoneE164Preview,AppointmentModal,AudioControls,CallHistoryPanel,CallTimeline,CallbackModal,ContactActivityTimeline,DialPad,DispositionPanel,DtmfPad,LeadCard,QualificationForm,RetryCountdown,ScriptDrawer,WrapUpModal,ColumnMapper,ImportDeleteDialog,DataPagination,PageHeader,StatusPill,AppLayoutComp,AppSidebarComp,RoleGuardComp,ApiKeysTab,AutoAssignTab,DialerSettingsTab,GeneralSettingsTab,NumberPoolTab,QueueRulesTab,RoutingTab,AgentActivityCard,CallMonitorPanel,LiveAgentsList,ImageUpload,JobCardForm,JobCardList,TechAvailabilityCalendar,shadcn_ui components
+    class useAuth,useAgentStatus,useAppointments,useAuditLog,useCampaignPhones,useContacts,useDialerQueue,useLiveKitClient,useMobileAuth,useReports,useTechnicianAppointments,useTechnicians,useToast hooks
+    class profiles,user_roles,companies,contacts,contact_phone_numbers,campaign_contacts,lead_qualifications,follow_up_tasks,campaigns,campaign_agents,campaign_scripts,campaign_phone_numbers,campaign_caller_ids,caller_ids,call_logs,call_attempts,call_sessions,call_events,recordings,dial_sessions,dialer_logs,appointments,technician_appointments,appointment_status_history,clients,client_accounts,client_users,job_cards,client_notes,client_photos,job_card_images,client_notifications,technicians,technician_availability,qa_scores,agent_feedback,call_monitoring_sessions,ai_call_summaries,ai_training_materials,training_simulations,dispositions,callbacks,import_jobs,import_errors,admin_audit_log,audit_events,webhook_events,daily_reports,phone_number_stats,telephony_providers,dnc_entries database
+    class ai_call_summary,call_monitor,create_user,delete_all_contacts,delete_import,get_recording_url,livekit_call_control,livekit_token,livekit_webhook,manage_user,power_dialer_next,predictive_dialer_engine,schedule_best_technician,training_simulation edgeFunctions
+    class Supabase,LiveKit,Telnyx,ApiFreeLLM,OpenAI external
+    class TechnicianMobile mobile
+```
+
+---
+
+```mermaid
+graph LR
+    %% ─────────────────────────────────────────
+    %% DIAGRAM 2 — User Roles & Access
+    %% FIX 8: Recordings and Reports pages added
+    %% ─────────────────────────────────────────
+
+    subgraph "User Roles"
+        Admin[Admin<br/>Full Access]
+        Manager[Manager<br/>Team Management]
+        TeamLeader[Team Leader<br/>QA & Monitoring]
+        Agent[Agent<br/>Dialer & Contacts]
+        Confirmer[Confirmer<br/>Appointment Confirmation]
+        Technician[Technician<br/>Mobile App]
+        Client[Client<br/>Portal Access]
+    end
+
+    subgraph "Role-Based Page Access"
+        DashboardPage[Dashboard]
+        ContactsPage[Contacts]
+        UsersPage[Users]
+        ImportsPage[Imports]
+        CampaignsPage[Campaigns]
+        DialerPage[Dialer]
+        ScriptsPage[Scripts]
+        CallbacksPage[Daily Lead Queue]
+        AppointmentsPage[Appointments]
+        ConfirmerQueuePage[Confirmer Queue]
+        TechniciansPage[Technicians]
+        TechCalendarPage[Tech Calendar]
+        TechDashboardPage[Tech Dashboard]
+        TrainingPage[Training]
+        TasksPage[Tasks]
+        LeadAssignmentPage[Lead Assignment]
+        ClientsPage[Clients]
+        SettingsPage[Settings]
+        TeamDashboardPage[Team Monitor]
+        QaDashboardPage[QA Scoring]
+        AgentPerfPage[Agent Perf]
+        MyFeedbackPage[My Feedback]
+        ClientPortalPage[Client Portal]
+        ProfilePage[My Profile]
+        TechAvailabilityPage[My Availability]
+        RecordingsPage[Recordings]
+        ReportsPage[Reports]
+    end
+
+    Admin --> DashboardPage
+    Admin --> ContactsPage
+    Admin --> UsersPage
+    Admin --> ImportsPage
+    Admin --> CampaignsPage
+    Admin --> DialerPage
+    Admin --> ScriptsPage
+    Admin --> CallbacksPage
+    Admin --> AppointmentsPage
+    Admin --> ConfirmerQueuePage
+    Admin --> TechniciansPage
+    Admin --> TechCalendarPage
+    Admin --> TechDashboardPage
+    Admin --> TrainingPage
+    Admin --> TasksPage
+    Admin --> LeadAssignmentPage
+    Admin --> ClientsPage
+    Admin --> SettingsPage
+    Admin --> TeamDashboardPage
+    Admin --> QaDashboardPage
+    Admin --> AgentPerfPage
+    Admin --> ProfilePage
+    Admin --> ClientPortalPage
+    Admin --> RecordingsPage
+    Admin --> ReportsPage
+
+    Manager --> DashboardPage
+    Manager --> TechniciansPage
+    Manager --> TechCalendarPage
+    Manager --> TechDashboardPage
+    Manager --> ClientsPage
+    Manager --> TeamDashboardPage
+    Manager --> RecordingsPage
+    Manager --> ReportsPage
+    Manager --> ProfilePage
+
+    TeamLeader --> DashboardPage
+    TeamLeader --> ScriptsPage
+    TeamLeader --> TechniciansPage
+    TeamLeader --> TrainingPage
+    TeamLeader --> TasksPage
+    TeamLeader --> ClientsPage
+    TeamLeader --> TeamDashboardPage
+    TeamLeader --> QaDashboardPage
+    TeamLeader --> AgentPerfPage
+    TeamLeader --> MyFeedbackPage
+    TeamLeader --> RecordingsPage
+    TeamLeader --> ReportsPage
+    TeamLeader --> ProfilePage
+
+    Agent --> DashboardPage
+    Agent --> ContactsPage
+    Agent --> DialerPage
+    Agent --> ScriptsPage
+    Agent --> CallbacksPage
+    Agent --> AppointmentsPage
+    Agent --> TechniciansPage
+    Agent --> TrainingPage
+    Agent --> TasksPage
+    Agent --> ClientsPage
+    Agent --> MyFeedbackPage
+    Agent --> RecordingsPage
+    Agent --> ProfilePage
+
+    Confirmer --> DialerPage
+    Confirmer --> ScriptsPage
+    Confirmer --> CallbacksPage
+    Confirmer --> AppointmentsPage
+    Confirmer --> ConfirmerQueuePage
+    Confirmer --> TechniciansPage
+    Confirmer --> TechCalendarPage
+    Confirmer --> TrainingPage
+    Confirmer --> ProfilePage
+
+    Technician --> TechniciansPage
+    Technician --> TechCalendarPage
+    Technician --> TechDashboardPage
+    Technician --> TechAvailabilityPage
+    Technician --> ProfilePage
+
+    Client --> ClientPortalPage
+    Client --> ProfilePage
+```
+
+---
+
+```mermaid
+sequenceDiagram
+    %% ─────────────────────────────────────────────────────────────────
+    %% DIAGRAM 3 — Authentication & Call Sequence
+    %% FIX 6: Token fetched directly from edge function
+    %% FIX 7: Post-call webhook → call_logs + AI summary added
+    %% ─────────────────────────────────────────────────────────────────
+
+    participant User
+    participant AuthProvider
+    participant Supabase
+    participant livekit_token as livekit-token (edge fn)
+    participant livekit_webhook as livekit-webhook (edge fn)
+    participant ai_call_summary as ai-call-summary (edge fn)
+    participant LiveKit
+    participant Telnyx
+    participant ApiFreeLLM
+
+    User->>AuthProvider: Login
+    AuthProvider->>Supabase: Authenticate
+    Supabase-->>AuthProvider: Session + Profile + Roles
+    AuthProvider-->>User: Auth Context
+
+    User->>Dialer: Open Dialer
+    Dialer->>useLiveKitClient: Initialise
+
+    Note over useLiveKitClient,livekit_token: FIX — token fetched directly from edge function,<br/>not routed through a second Supabase hop
+    useLiveKitClient->>livekit_token: Invoke edge function (via Supabase Functions client)
+    livekit_token->>LiveKit: Request signed room token
+    LiveKit-->>livekit_token: Signed JWT
+    livekit_token-->>useLiveKitClient: JWT Token
+
+    useLiveKitClient->>LiveKit: Connect to room with token
+    LiveKit-->>useLiveKitClient: Connected
+
+    User->>Dialer: Click Call
+    Dialer->>useLiveKitClient: Dial number
+    useLiveKitClient->>LiveKit: Initiate SIP participant
+    LiveKit->>Telnyx: SIP bridge call
+    Telnyx-->>LiveKit: Call connected
+    LiveKit-->>useLiveKitClient: Call state active
+    useLiveKitClient-->>Dialer: Call active
+
+    User->>Dialer: Hang up
+    Dialer->>useLiveKitClient: End call
+    useLiveKitClient->>LiveKit: Disconnect participant
+    LiveKit->>Telnyx: End SIP call
+    Telnyx-->>LiveKit: Call ended
+
+    Note over LiveKit,ai_call_summary: FIX — post-call webhook chain now shown
+    LiveKit->>livekit_webhook: call.ended event (recording URL, duration, metadata)
+    livekit_webhook->>Supabase: Write call_logs, recordings, webhook_events
+    livekit_webhook->>ai_call_summary: Trigger AI summarisation
+    ai_call_summary->>ApiFreeLLM: Generate summary + transcription
+    ApiFreeLLM-->>ai_call_summary: Summary text
+    ai_call_summary->>Supabase: Save to ai_call_summaries
+
+    LiveKit-->>useLiveKitClient: Disconnected
+    useLiveKitClient-->>Dialer: Call complete
+```
+
+---
+
+```mermaid
+graph TB
+    %% ─────────────────────────────────────────────────────────────────
+    %% DIAGRAM 4 — Full Data Flow: Lead Entry → Job Completion
+    %% FIX 9:  Import direction corrected (CSV → Contact, not reversed)
+    %% FIX 10: DNC check added before dialling
+    %% NEW:    Full Confirmer appointment confirmation workflow
+    %% ─────────────────────────────────────────────────────────────────
+
+    subgraph "Lead Entry"
+        CSVImport[CSV File Import]
+        ManualEntry[Manual Entry]
+        Contact[Contact Record Created]
+    end
+
+    subgraph "Campaign & Queue"
+        Campaign[Assigned to Campaign]
+        DNCCheck{DNC Check}
+        DNCBlocked[Blocked — on DNC List]
+        Queue[Dialer Queue]
+    end
+
+    subgraph "Calling"
+        AgentAssigned[Agent Assigned]
+        Call[Call Made]
+        Webhook[livekit-webhook fires]
+        AISummary[AI Summary generated]
+        Disposition{Disposition}
+    end
+
+    subgraph "Call Outcomes"
+        Appointment[Appointment Booked]
+        Callback[Callback Scheduled]
+        NoAnswer[No Answer / Voicemail]
+    end
+
+    subgraph "Appointment Lifecycle"
+        TechCalendar["Technician Calendar<br/>(entry created — status: pending)"]
+        D1Trigger["D-1 Trigger<br/>(day before appointment)"]
+        ConfirmerQueueEntry[Confirmer Daily Queue]
+        ConfirmAction{Confirmer Action}
+        StatusConfirmed["Status → Confirmed"]
+        StatusNoAnswer["Status → Unconfirmed / No Answer"]
+        StatusCancelled["Status → Cancelled"]
+        Rescheduled["New Appointment Booked<br/>(re-enters lifecycle)"]
+    end
+
+    subgraph "Delivery"
+        TechDispatched[Technician Dispatched]
+        JobCard[Job Card Created]
+        JobCompleted[Job Completed]
+    end
+
+    %% Lead Entry
+    CSVImport --> Contact
+    ManualEntry --> Contact
+
+    %% Campaign routing with DNC gate
+    Contact --> Campaign
+    Campaign --> DNCCheck
+    DNCCheck -->|Listed| DNCBlocked
+    DNCCheck -->|Clear| Queue
+
+    %% Calling flow
+    Queue --> AgentAssigned
+    AgentAssigned --> Call
+    Call --> Webhook
+    Webhook --> AISummary
+    Webhook --> Disposition
+
+    %% Disposition branches
+    Disposition -->|Booked| Appointment
+    Disposition -->|Callback| Callback
+    Disposition -->|No Answer / VM| NoAnswer
+    Callback --> Queue
+    NoAnswer --> Queue
+
+    %% Appointment → Tech Calendar (immediate)
+    Appointment --> TechCalendar
+
+    %% Confirmer workflow (D-1 trigger, separate from tech calendar)
+    Appointment --> D1Trigger
+    D1Trigger --> ConfirmerQueueEntry
+    ConfirmerQueueEntry --> ConfirmAction
+
+    %% Confirmer outcomes — all update status IN the tech calendar, never remove it
+    ConfirmAction -->|Confirmed| StatusConfirmed
+    ConfirmAction -->|No Answer| StatusNoAnswer
+    ConfirmAction -->|Cancelled| StatusCancelled
+    ConfirmAction -->|Rescheduled| Rescheduled
+
+    StatusConfirmed --> TechCalendar
+    StatusNoAnswer --> TechCalendar
+    StatusCancelled --> TechCalendar
+    Rescheduled --> Appointment
+
+    %% Delivery
+    TechCalendar --> TechDispatched
+    TechDispatched --> JobCard
+    JobCard --> JobCompleted
+```
+
+---
+
+```mermaid
+graph TD
+    %% ─────────────────────────────────────────
+    %% DIAGRAM 5 — Technology Stack
+    %% FIX 12: OpenRouter replaced with Anthropic API
+    %% ─────────────────────────────────────────
+
+    subgraph "Technology Stack"
+        Frontend[Frontend<br/>React 18 + TypeScript<br/>Vite + TailwindCSS<br/>shadcn/ui]
+        State[State Management<br/>React Query<br/>React Context]
+        Routing[Routing<br/>React Router v6]
+        Database[Database<br/>Supabase PostgreSQL<br/>RLS Policies]
+        Auth[Authentication<br/>Supabase Auth<br/>JWT Tokens]
+        Realtime[Real-time<br/>Supabase Realtime<br/>LiveKit WebRTC]
+        Storage[Storage<br/>Supabase Storage<br/>Recordings & Images]
+        Edge[Edge Functions<br/>Supabase Edge<br/>Deno Runtime]
+        Mobile[Mobile<br/>Capacitor<br/>Android/iOS]
+        Telephony[Telephony<br/>LiveKit Cloud<br/>Telnyx SIP Trunk]
+        AI[AI/LLM<br/>api-free-llm API<br/>OpenAI — Transcription]
+        Deployment[Deployment<br/>Vercel/Netlify<br/>Auto-deploy from Git]
+    end
+
+    Frontend --> State
+    Frontend --> Routing
+    State --> Database
+    Auth --> Database
+    Realtime --> Database
+    Realtime --> Telephony
+    Storage --> Database
+    Edge --> Database
+    Edge --> AI
+    Mobile --> Database
+    Mobile --> Realtime
+    Telephony --> Edge
+    Frontend --> Deployment
+```
+
+---
+
+```mermaid
+sequenceDiagram
+    %% ─────────────────────────────────────────────────────────────────
+    %% DIAGRAM 6 (NEW) — Confirmer Appointment Confirmation Lifecycle
+    %% Shows: booking → tech calendar → D-1 queue → status updates
+    %% Key rule: appointment stays in tech calendar throughout;
+    %%           only its status field changes.
+    %% ─────────────────────────────────────────────────────────────────
+
+    participant Agent
+    participant Supabase
+    participant TechCalendar as Tech Calendar (technician_appointments)
+    participant StatusLog as appointment_status_history
+    participant DailyJob as D-1 Daily Trigger
+    participant ConfirmerQueue as Confirmer Queue Page
+    participant Confirmer
+    participant Customer
+
+    Agent->>Supabase: Book appointment (disposition = Booked)
+    Supabase->>TechCalendar: INSERT row — status: pending
+    Note over TechCalendar: Appointment is now visible<br/>in technician's calendar
+
+    Note over DailyJob: Runs each night — finds appointments<br/>where date = tomorrow
+    DailyJob->>ConfirmerQueue: Populate confirmation queue for today
+
+    Confirmer->>ConfirmerQueue: Opens daily queue
+    ConfirmerQueue-->>Confirmer: List of tomorrow's appointments
+
+    Confirmer->>Customer: Confirmation call
+
+    alt Customer confirms
+        Customer-->>Confirmer: Yes, confirmed
+        Confirmer->>Supabase: PATCH status → confirmed
+        Supabase->>TechCalendar: UPDATE status = confirmed
+        Supabase->>StatusLog: INSERT status change record
+        Note over TechCalendar: ✓ Status updated in place — row not removed
+    else No answer / couldn't reach
+        Confirmer->>Supabase: PATCH status → no_answer
+        Supabase->>TechCalendar: UPDATE status = no_answer
+        Supabase->>StatusLog: INSERT status change record
+        Note over TechCalendar: Technician still sees appointment;<br/>confirmer may retry later
+    else Customer cancels
+        Customer-->>Confirmer: Cancel appointment
+        Confirmer->>Supabase: PATCH status → cancelled
+        Supabase->>TechCalendar: UPDATE status = cancelled
+        Supabase->>StatusLog: INSERT status change record
+        Note over TechCalendar: Appointment remains visible as cancelled<br/>(preserves audit trail)
+    else Customer reschedules
+        Customer-->>Confirmer: Request new date/time
+        Confirmer->>Supabase: PATCH original → rescheduled + INSERT new appointment
+        Supabase->>TechCalendar: UPDATE original status = rescheduled
+        Supabase->>TechCalendar: INSERT new row for new date — status: pending
+        Supabase->>StatusLog: INSERT status change records for both
+        Note over TechCalendar: New appointment enters same lifecycle;<br/>original marked rescheduled
+    end
+```

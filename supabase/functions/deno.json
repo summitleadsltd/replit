@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window", "deno.unstable"],
+    "noImplicitAny": false
+  },
+  "importMap": "./import_map.json"
+}

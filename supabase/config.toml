@@ -1,0 +1,4 @@
+project_id = "wggmfykmabandkllqodc"
+
+[functions.livekit-webhook]
+verify_jwt = false

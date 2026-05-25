@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Summit Tech</string>
+    <string name="title_activity_main">Summit Tech</string>
+    <string name="package_name">com.summitleadsltd.tech</string>
+    <string name="custom_url_scheme">com.summitleadsltd.tech</string>
+</resources>

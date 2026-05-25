@@ -1,0 +1,618 @@
+diff --git a/.continue/checks/no-console-logging.md b/.continue/checks/no-console-logging.md
+index db841ad..cf7bc50 100644
+--- a/.continue/checks/no-console-logging.md
++++ b/.continue/checks/no-console-logging.md
+@@ -8,6 +8,7 @@ description: Flags console.log/warn/error/debug in production UI code while allo
+ ## Context
+ 
+ The Summit CRM has 61+ console statements scattered across 21 files. While useful during development, console logging in production:
++
+ - Leaks internal state to users
+ - Creates noise in Sentry/error tracking
+ - Violates clean code hygiene
+@@ -19,11 +20,13 @@ Per the project README: "audit failures should be silent for users" — the same
+ ### 1. UI Code (src/pages, src/components, src/hooks)
+ 
+ **FAIL** if `console.log`, `console.warn`, `console.error`, or `console.debug` appear in:
++
+ - React components
+ - Custom hooks
+ - Page containers
+ 
+ **GOOD examples from codebase (compliant):**
++
+ ```typescript
+ // src/lib/audit.ts - silently swallows errors (correct)
+ if (error) {
+@@ -31,9 +34,11 @@ if (error) {
+   return null;
+ }
+ ```
++
+ → This is OK because it's in a utility lib with categorized prefix.
+ 
+ **BAD examples from codebase (flag it):**
++
+ ```typescript
+ // src/hooks/use-dialer-queue.ts
+ console.log("[useDialerQueue] Auto-assigning to:", assigneeId);
+@@ -49,13 +54,14 @@ console.log("[Dialer] Campaign changed, resetting queue");
+ 
+ **PASS** — Console logging is allowed and expected here for server-side debugging. Do not flag.
+ 
+-### 3. Test Files (src/test, *.test.ts, *.spec.ts)
++### 3. Test Files (src/test, *.test.ts,*.spec.ts)
+ 
+ **PASS** — Console logging in tests is acceptable for debugging test failures.
+ 
+ ### 4. Utility Libs with Prefixed Logging (src/lib)
+ 
+ **WARNING** — Prefixed console output (e.g., `[audit]`, `[LiveKit]`) is borderline. Accept only if:
++
+ - The prefix is module-specific
+ - The log is in an error/failure path
+ - The log aids debugging production issues
+@@ -63,6 +69,7 @@ console.log("[Dialer] Campaign changed, resetting queue");
+ ## Key Files
+ 
+ These files commonly have console statements that should be reviewed:
++
+ - `src/hooks/use-dialer-queue.ts`
+ - `src/hooks/use-livekit-client.ts`
+ - `src/hooks/use-mobile-auth.ts`
+@@ -72,6 +79,7 @@ These files commonly have console statements that should be reviewed:
+ ## Exclusions
+ 
+ This check does NOT apply to:
++
+ - `supabase/functions/*` — edge functions need debug logging
+ - `src/test/*` — test files
+ - `*.test.ts`, `*.spec.ts` — test files anywhere
+@@ -81,11 +89,13 @@ This check does NOT apply to:
+ ## Fix Guidance
+ 
+ Replace console statements with:
++
+ 1. **Production error tracking** — Use error reporting service if available
+ 2. **Silent failures** — Remove logs that "just work" in production
+ 3. **Debug flags** — Wrap in `if (import.meta.env.DEV)` for development-only logging
+ 
+ Example fix:
++
+ ```typescript
+ // Before:
+ console.log("[Dialer] Campaign changed, resetting queue");
+diff --git a/src/components/dialer/LeadCard.tsx b/src/components/dialer/LeadCard.tsx
+index cf742a0..484980c 100644
+--- a/src/components/dialer/LeadCard.tsx
++++ b/src/components/dialer/LeadCard.tsx
+@@ -1,4 +1,14 @@
+-import { QueueContact } from "@/hooks/use-dialer-queue";
++import { DialerQueueLead } from "@/hooks/useDialerQueue";
++
++// Extended type for LeadCard with additional fields
++type QueueContact = DialerQueueLead['contact'] & {
++  id: string;
++  contact_id: string;
++  attempts: number;
++  dial_status: string | null;
++  email?: string | null;
++  lead_source?: string | null;
++};
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ import { Badge } from "@/components/ui/badge";
+ import { Button } from "@/components/ui/button";
+diff --git a/src/components/settings/CallerIdAuditModal.tsx b/src/components/settings/CallerIdAuditModal.tsx
+index 707a1d0..a020898 100644
+--- a/src/components/settings/CallerIdAuditModal.tsx
++++ b/src/components/settings/CallerIdAuditModal.tsx
+@@ -63,7 +63,7 @@ export default function CallerIdAuditModal({ callerId, phoneE164, displayName, o
+         new Set(events.map((e) => e.actor_id).filter((id): id is string => !!id))
+       );
+ 
+-      let nameMap = new Map<string, string>();
++      const nameMap = new Map<string, string>();
+       if (actorIds.length > 0) {
+         const { data: profiles } = await supabase
+           .from("profiles")
+diff --git a/src/hooks/use-dialer-queue.ts b/src/hooks/use-dialer-queue.ts
+index f4773d0..9c1ca32 100644
+--- a/src/hooks/use-dialer-queue.ts
++++ b/src/hooks/use-dialer-queue.ts
+@@ -228,7 +228,7 @@ export function useDialerQueue(campaignId: string | null) {
+     // Prefer leads already locked to me (ownership continuity), else fall back
+     const myOwned = filtered.filter((r) => r.contacts?.locked_to_agent_id === myUserId);
+     const pool = myOwned.length > 0 ? myOwned : filtered;
+-    let cc = pool[0] || null;
++    const cc = pool[0] || null;
+ 
+     if (!cc) return null;
+ 
+diff --git a/src/pages/Dialer.tsx b/src/pages/Dialer.tsx
+index 9d70cac..e9a7133 100644
+--- a/src/pages/Dialer.tsx
++++ b/src/pages/Dialer.tsx
+@@ -10,12 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
+ import {
+   Phone, PhoneOff, Clock, FileText, ChevronRight,
+   SkipForward, Loader2, Wifi, WifiOff,
+-  AlertTriangle, Zap, StopCircle, Timer,
++  AlertTriangle, Zap, StopCircle,
+ } from "lucide-react";
+ import { CalendarPlus } from "lucide-react";
+ import { toast } from "@/hooks/use-toast";
+-import { useDialerQueue } from "@/hooks/use-dialer-queue";
+-import { useDialerQueue as useAgentDailyQueue } from "@/hooks/useDialerQueue";
++import { useDialerQueue } from "@/hooks/useDialerQueue";
+ import { useAgentStatus, isCallableStatus, getStatusMeta } from "@/hooks/use-agent-status";
+ import { useLiveKitClient } from "@/hooks/use-livekit-client";
+ import { useCampaignPhones } from "@/hooks/use-campaign-phones";
+@@ -98,45 +97,42 @@ export default function Dialer() {
+   const campaignDialMode: DialModeType = (selectedCampaign?.dial_mode as DialModeType) || "click_to_call";
+   const isPowerMode = campaignDialMode === "power_dial" || campaignDialMode === "auto_dial";
+ 
+-  const { currentLead, stats, loading, fetchNextLead, disposeLead, skipLead, fetchStats } =
+-    useDialerQueue(campaignId);
+-
+   const {
+-    totalAssigned: dailyTotalAssigned,
+-    contactedToday: dailyContactedToday,
+-    remainingToday: dailyRemainingToday,
+-    currentLead: dailyCurrentLead,
+-    advanceToNext: advanceDailyQueue,
+-    isLoading: dailyQueueLoading,
+-  } = useAgentDailyQueue();
+-
+-  // Flatten the daily-queue lead into the shape expected by <LeadCard />.
+-  const dailyLeadCard = dailyCurrentLead
++    totalAssigned,
++    contactedToday,
++    remainingToday,
++    currentLead,
++    advanceToNext,
++    isLoading: queueLoading,
++  } = useDialerQueue();
++
++  // Flatten the queue lead into the shape expected by <LeadCard />.
++  const leadCard = currentLead
+     ? {
+-        id: dailyCurrentLead.campaign_contact_id,
+-        contact_id: dailyCurrentLead.contact_id,
+-        first_name: dailyCurrentLead.contact?.first_name ?? "",
+-        last_name: dailyCurrentLead.contact?.last_name ?? "",
+-        phone_e164: dailyCurrentLead.contact?.phone_e164 ?? null,
+-        phone_raw: dailyCurrentLead.contact?.phone_raw ?? null,
+-        address: dailyCurrentLead.contact?.address ?? null,
+-        city: dailyCurrentLead.contact?.city ?? null,
+-        state: dailyCurrentLead.contact?.state ?? null,
+-        zip_code: dailyCurrentLead.contact?.zip_code ?? null,
+-        county: dailyCurrentLead.contact?.county ?? null,
+-        title: dailyCurrentLead.contact?.title ?? null,
+-        owner_renter: dailyCurrentLead.contact?.owner_renter ?? null,
+-        home_value: dailyCurrentLead.contact?.home_value ?? null,
+-        household_income: dailyCurrentLead.contact?.household_income ?? null,
+-        credit_rating: dailyCurrentLead.contact?.credit_rating ?? null,
+-        cool_notes: dailyCurrentLead.contact?.cool_notes ?? null,
+-        timezone: dailyCurrentLead.contact?.timezone ?? null,
+-        lead_status: dailyCurrentLead.contact?.lead_status ?? null,
+-        attempts: dailyCurrentLead.attempts ?? 0,
++        id: currentLead.campaign_contact_id,
++        contact_id: currentLead.contact_id,
++        first_name: currentLead.contact?.first_name ?? "",
++        last_name: currentLead.contact?.last_name ?? "",
++        phone_e164: currentLead.contact?.phone_e164 ?? null,
++        phone_raw: currentLead.contact?.phone_raw ?? null,
++        address: currentLead.contact?.address ?? null,
++        city: currentLead.contact?.city ?? null,
++        state: currentLead.contact?.state ?? null,
++        zip_code: currentLead.contact?.zip_code ?? null,
++        county: currentLead.contact?.county ?? null,
++        title: currentLead.contact?.title ?? null,
++        owner_renter: currentLead.contact?.owner_renter ?? null,
++        home_value: currentLead.contact?.home_value ?? null,
++        household_income: currentLead.contact?.household_income ?? null,
++        credit_rating: currentLead.contact?.credit_rating ?? null,
++        cool_notes: currentLead.contact?.cool_notes ?? null,
++        timezone: currentLead.contact?.timezone ?? null,
++        lead_status: currentLead.contact?.lead_status ?? null,
++        attempts: currentLead.attempts ?? 0,
+         dial_status: null,
+         // extra fields surfaced for this view (LeadCard ignores unknown props)
+-        email: dailyCurrentLead.contact?.email ?? null,
+-        lead_source: dailyCurrentLead.contact?.lead_source ?? null,
++        email: currentLead.contact?.email ?? null,
++        lead_source: currentLead.contact?.lead_source ?? null,
+       } as any
+     : null;
+ 
+@@ -247,18 +243,18 @@ export default function Dialer() {
+   // -----------------------------------------------------------------------
+   const handleLoadNext = useCallback(async () => {
+     if (!agentReady) { toast({ title: "Not ready", description: "Set your status to Ready.", variant: "destructive" }); return; }
+-    await fetchNextLead();
++    await advanceToNext();
+     setNotes("");
+-  }, [fetchNextLead, agentReady]);
++  }, [advanceToNext, agentReady]);
+ 
+   const handleStartCall = useCallback(async () => {
+-    if (!currentLead) return;
++    if (!leadCard) return;
+     if (!agentReady) { toast({ title: "Not ready", variant: "destructive" }); return; }
+-    const phone = currentLead.phone_e164 || currentLead.phone_raw;
++    const phone = leadCard.phone_e164 || leadCard.phone_raw;
+     if (!phone) { toast({ title: "No phone number", variant: "destructive" }); return; }
+     const from = await getOutboundCallerId();
+     makeCall(phone, from || undefined);
+-  }, [currentLead, agentReady, makeCall, getOutboundCallerId]);
++  }, [leadCard, agentReady, makeCall, getOutboundCallerId]);
+ 
+   const handleManualDial = useCallback(async (e164: string, raw: string) => {
+     if (!canMakeCalls) return;
+@@ -295,13 +291,13 @@ export default function Dialer() {
+    * Advance to next lead. If power dial is active, set the auto-dial flag
+    * so the useEffect above triggers the call automatically.
+    */
+-  const advanceToNext = useCallback(async () => {
++  const handleAdvanceNext = useCallback(async () => {
+     if (powerDialRef.current && isPowerMode) {
+       autoDialPendingRef.current = true;
+     }
+-    await fetchNextLead();
++    await advanceToNext();
+     setNotes("");
+-  }, [fetchNextLead, isPowerMode]);
++  }, [advanceToNext, isPowerMode]);
+ 
+   const handleDispose = useCallback(async (code: string) => {
+     if (disposingRef.current) return;
+@@ -309,15 +305,36 @@ export default function Dialer() {
+ 
+     try {
+       if (currentLead) {
+-        // ── Campaign lead disposition ──
++        // ── Queue lead disposition ──
+         if (code === "callback") { setPendingDisposition(code); setShowCallbackModal(true); return; }
+         if (code === "appointment_booked") { setPendingDisposition(code); setShowAppointmentModal(true); return; }
+ 
+-        const callLogId = await disposeLead(code, notes, lastCallStartedAt, lastCallDuration);
+-        toast({ title: "Disposition saved", description: `${currentLead.first_name} ${currentLead.last_name} — ${code.replace("_", " ")}` });
++        // Save call log
++        const { data: session } = await supabase.auth.getSession();
++        const userId = session?.session?.user?.id || null;
++        
++        const { data: callLogData } = await supabase.from("call_attempts").insert({
++          contact_id: currentLead.contact_id,
++          campaign_id: currentLead.campaign_id,
++          agent_id: userId,
++          disposition: code,
++          notes: notes || null,
++          started_at: lastCallStartedAt || new Date().toISOString(),
++          ended_at: new Date().toISOString(),
++          duration_seconds: lastCallDuration || 0,
++          call_source: "queue",
++          dial_mode_used: campaignDialMode || "manual",
++          to_number: currentLead.contact?.phone_e164 || null,
++          outcome: dispositionToOutcome(code),
++          provider_used: "livekit",
++        }).select("id").single();
++
++        const callLogId = callLogData?.id || null;
++        toast({ title: "Disposition saved", description: `${currentLead.contact?.first_name || ""} ${currentLead.contact?.last_name || ""} — ${code.replace("_", " ")}` });
+         triggerAiSummary(callLogId);
+-        await advanceToNext();
+-        await advanceDailyQueue();
++        
++        // Advance to next lead
++        await handleAdvanceNext();
+       } else if (manualCallActive) {
+         // ── Manual call disposition ──
+         const contactId = manualMatchedContact?.contact_id || null;
+@@ -363,7 +380,7 @@ export default function Dialer() {
+     } finally {
+       disposingRef.current = false;
+     }
+-  }, [currentLead, manualCallActive, manualMatchedContact, manualDialedE164, manualDialedRaw, lastCallStartedAt, lastCallDuration, campaignId, notes, lastOutboundNumber, disposeLead, advanceToNext, advanceDailyQueue, triggerAiSummary]);
++  }, [currentLead, manualCallActive, manualMatchedContact, manualDialedE164, manualDialedRaw, lastCallStartedAt, lastCallDuration, campaignId, notes, lastOutboundNumber, campaignDialMode, handleAdvanceNext, triggerAiSummary]);
+ 
+   const handleModalSaved = useCallback(async () => {
+     if (!currentLead || !pendingDisposition) return;
+@@ -371,16 +388,34 @@ export default function Dialer() {
+     setShowAppointmentModal(false);
+     disposingRef.current = true;
+     try {
+-      const callLogId = await disposeLead(pendingDisposition, notes, lastCallStartedAt, lastCallDuration);
++      // Save call log for callback/appointment
++      const { data: session } = await supabase.auth.getSession();
++      const userId = session?.session?.user?.id || null;
++      
++      const { data: callLogData } = await supabase.from("call_attempts").insert({
++        contact_id: currentLead.contact_id,
++        campaign_id: currentLead.campaign_id,
++        agent_id: userId,
++        disposition: pendingDisposition,
++        notes: notes || null,
++        started_at: lastCallStartedAt || new Date().toISOString(),
++        ended_at: new Date().toISOString(),
++        duration_seconds: lastCallDuration || 0,
++        call_source: "queue",
++        dial_mode_used: campaignDialMode || "manual",
++        to_number: currentLead.contact?.phone_e164 || null,
++        outcome: dispositionToOutcome(pendingDisposition),
++        provider_used: "livekit",
++      }).select("id").single();
++
+       setPendingDisposition(null);
+       toast({ title: "Disposition saved" });
+-      triggerAiSummary(callLogId);
+-      await advanceToNext();
+-      await advanceDailyQueue();
++      triggerAiSummary(callLogData?.id || null);
++      await handleAdvanceNext();
+     } finally {
+       disposingRef.current = false;
+     }
+-  }, [currentLead, pendingDisposition, notes, lastCallStartedAt, lastCallDuration, disposeLead, advanceToNext, advanceDailyQueue, triggerAiSummary]);
++  }, [currentLead, pendingDisposition, notes, lastCallStartedAt, lastCallDuration, campaignDialMode, handleAdvanceNext, triggerAiSummary]);
+ 
+   const handleModalClose = useCallback(() => {
+     setShowCallbackModal(false);
+@@ -391,18 +426,17 @@ export default function Dialer() {
+ 
+   const handleSkip = useCallback(async () => {
+     hangup();
+-    await skipLead();
+     setNotes("");
+     if (powerDialRef.current && isPowerMode) {
+       autoDialPendingRef.current = true;
+     }
+-    await fetchNextLead();
+-  }, [skipLead, fetchNextLead, hangup, isPowerMode]);
++    await handleAdvanceNext();
++  }, [hangup, isPowerMode, handleAdvanceNext]);
+ 
+   // Power dial controls
+   const startPowerDial = useCallback(async () => {
+-    if (!campaignId || !agentReady || !clientReady) {
+-      toast({ title: "Cannot start", description: "Ensure campaign is selected, status is Ready, and telephony is connected.", variant: "destructive" });
++    if (!agentReady || !clientReady) {
++      toast({ title: "Cannot start", description: "Ensure status is Ready and telephony is connected.", variant: "destructive" });
+       return;
+     }
+     powerDialRef.current = true;
+@@ -410,9 +444,8 @@ export default function Dialer() {
+     setPowerDialPaused(false);
+     autoDialPendingRef.current = true;
+     toast({ title: "Power Dial started", description: "The system will automatically dial the next lead after each disposition." });
+-    await fetchNextLead();
+     setNotes("");
+-  }, [campaignId, agentReady, clientReady, fetchNextLead]);
++  }, [agentReady, clientReady]);
+ 
+   const stopPowerDial = useCallback(() => {
+     powerDialRef.current = false;
+@@ -514,9 +547,9 @@ export default function Dialer() {
+ 
+           <div className="grid grid-cols-3 gap-2">
+             {[
+-              { label: "Assigned Today", value: dailyTotalAssigned },
+-              { label: "Contacted", value: dailyContactedToday },
+-              { label: "Remaining", value: dailyRemainingToday },
++              { label: "Assigned Today", value: totalAssigned },
++              { label: "Contacted", value: contactedToday },
++              { label: "Remaining", value: remainingToday },
+             ].map((s) => (
+               <Card key={s.label}>
+                 <CardContent className="p-3 text-center">
+@@ -527,39 +560,29 @@ export default function Dialer() {
+             ))}
+           </div>
+ 
+-          {campaignId && (
+-            <Card>
+-              <CardHeader className="pb-2"><CardTitle className="text-sm">Queue Info</CardTitle></CardHeader>
+-              <CardContent className="space-y-2 text-sm">
+-                <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-medium text-foreground">{stats.remaining}</span></div>
+-                <div className="flex justify-between"><span className="text-muted-foreground">Completed</span><span className="font-medium text-foreground">{stats.completed}</span></div>
+-                <div className="flex justify-between"><span className="text-muted-foreground">Callbacks</span><span className="font-medium text-foreground">{stats.callbacks}</span></div>
+-                {stats.deferred > 0 && (
+-                  <div className="flex justify-between items-center">
+-                    <span className="text-muted-foreground flex items-center gap-1"><Timer className="w-3 h-3" />Deferred</span>
+-                    <span className="font-medium text-warning">{stats.deferred}</span>
+-                  </div>
+-                )}
+-                {stats.deferred > 0 && stats.nextRetryAt && (
+-                  <RetryCountdown targetTime={stats.nextRetryAt} onExpired={fetchStats} />
+-                )}
+-                {phones.length > 0 && (
+-                  <div className="flex justify-between"><span className="text-muted-foreground">Phone Pool</span><span className="font-medium text-foreground">{phones.filter(p => p.is_active).length} active</span></div>
+-                )}
+-                {lastOutboundNumber && (
+-                  <div className="flex justify-between"><span className="text-muted-foreground">Caller ID</span><span className="font-mono text-xs text-foreground">{formatPhoneDisplay(lastOutboundNumber)}</span></div>
+-                )}
+-              </CardContent>
+-            </Card>
+-          )}
++          {/* Queue Stats */}
++          <Card>
++            <CardHeader className="pb-2"><CardTitle className="text-sm">Queue Info</CardTitle></CardHeader>
++            <CardContent className="space-y-2 text-sm">
++              <div className="flex justify-between"><span className="text-muted-foreground">Remaining Today</span><span className="font-medium text-foreground">{remainingToday}</span></div>
++              <div className="flex justify-between"><span className="text-muted-foreground">Contacted</span><span className="font-medium text-foreground">{contactedToday}</span></div>
++              <div className="flex justify-between"><span className="text-muted-foreground">Assigned</span><span className="font-medium text-foreground">{totalAssigned}</span></div>
++              {phones.length > 0 && (
++                <div className="flex justify-between"><span className="text-muted-foreground">Phone Pool</span><span className="font-medium text-foreground">{phones.filter(p => p.is_active).length} active</span></div>
++              )}
++              {lastOutboundNumber && (
++                <div className="flex justify-between"><span className="text-muted-foreground">Caller ID</span><span className="font-mono text-xs text-foreground">{formatPhoneDisplay(lastOutboundNumber)}</span></div>
++              )}
++            </CardContent>
++          </Card>
+ 
+           {/* Power Dial Controls */}
+-          {campaignId && isPowerMode && (
++          {isPowerMode && (
+             <Card>
+               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-warning" />Power Dial</CardTitle></CardHeader>
+               <CardContent className="space-y-2">
+                 {!powerDialActive ? (
+-                  <Button size="sm" className="w-full" onClick={startPowerDial} disabled={!canMakeCalls || stats.remaining === 0}>
++                  <Button size="sm" className="w-full" onClick={startPowerDial} disabled={!canMakeCalls || remainingToday === 0}>
+                     <Zap className="w-4 h-4 mr-1" /> Start Power Dial
+                   </Button>
+                 ) : (
+@@ -609,9 +632,9 @@ export default function Dialer() {
+               </Card>
+             )
+           ) : (
+-            dailyLeadCard ? (
+-              <LeadCard lead={dailyLeadCard} />
+-            ) : dailyQueueLoading ? (
++            leadCard ? (
++              <LeadCard lead={leadCard} />
++            ) : queueLoading ? (
+               <LeadCard lead={null} />
+             ) : (
+               <Card>
+@@ -630,8 +653,8 @@ export default function Dialer() {
+             <CardContent className="py-6">
+               <div className="flex items-center justify-center gap-4">
+                 {!currentLead && !manualCallActive && !onCall ? (
+-                  <Button size="lg" variant="outline" onClick={handleLoadNext} disabled={!campaignId || loading || !agentReady}>
+-                    {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ChevronRight className="w-5 h-5 mr-2" />}Next Lead
++                  <Button size="lg" variant="outline" onClick={handleLoadNext} disabled={queueLoading || !agentReady || remainingToday === 0}>
++                    {queueLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ChevronRight className="w-5 h-5 mr-2" />}Next Lead
+                   </Button>
+                 ) : onCall ? (
+                   <div className="flex flex-col items-center gap-2">
+@@ -652,14 +675,12 @@ export default function Dialer() {
+                   <>
+                     <Button size="lg" className="rounded-full w-16 h-16 bg-success hover:bg-success/90 text-success-foreground" onClick={() => {
+                       const selectedLeadPhoneNumber =
+-                        dailyCurrentLead?.contact?.phone_e164 ||
+-                        dailyCurrentLead?.contact?.phone_raw ||
+-                        currentLead?.phone_e164 ||
+-                        currentLead?.phone_raw ||
++                        leadCard?.phone_e164 ||
++                        leadCard?.phone_raw ||
+                         "";
+                       const campaignCallerNumber = lastOutboundNumber || "";
+                       dial(selectedLeadPhoneNumber, campaignCallerNumber);
+-                    }} disabled={!isConnected || !dailyCurrentLead}>
++                    }} disabled={!isConnected || !leadCard}>
+                       <Phone className="w-6 h-6" />
+                     </Button>
+                     <Button size="sm" variant="ghost" onClick={handleSkip}><SkipForward className="w-4 h-4 mr-1" />Skip</Button>
+@@ -723,37 +744,39 @@ export default function Dialer() {
+       </div>
+ 
+       {showCallbackModal && currentLead && (
+-        <CallbackModal contactId={currentLead.contact_id} contactName={`${currentLead.first_name} ${currentLead.last_name}`}
+-          campaignId={campaignId} onClose={handleModalClose} onSaved={handleModalSaved} />
++        <CallbackModal contactId={currentLead.contact_id} contactName={`${currentLead.contact?.first_name || ""} ${currentLead.contact?.last_name || ""}`}
++          campaignId={currentLead.campaign_id || campaignId} onClose={handleModalClose} onSaved={handleModalSaved} />
+       )}
+       {showAppointmentModal && (currentLead || manualMatchedContact) && (() => {
+-        const lead = (currentLead || manualMatchedContact)!;
++        const lead = currentLead || manualMatchedContact;
++        if (!lead) return null;
+         return (
+           <AppointmentModal
+             contactId={lead.contact_id}
+-            contactName={`${lead.first_name} ${lead.last_name}`}
+-            campaignId={campaignId}
++            contactName={`${lead.contact?.first_name || lead.first_name || ""} ${lead.contact?.last_name || lead.last_name || ""}`}
++            campaignId={currentLead?.campaign_id || campaignId}
+             callAttemptId={lastCallAttemptId}
+-            contactAddress={lead.address}
+-            contactCity={lead.city}
+-            contactState={lead.state}
+-            contactZip={lead.zip_code}
++            contactAddress={lead.contact?.address || lead.address}
++            contactCity={lead.contact?.city || lead.city}
++            contactState={lead.contact?.state || lead.state}
++            contactZip={lead.contact?.zip_code || lead.zip_code}
+             onClose={handleModalClose}
+             onSaved={handleModalSaved}
+           />
+         );
+       })()}
+       {showTechApptModal && (currentLead || manualMatchedContact) && (() => {
+-        const lead = (currentLead || manualMatchedContact)!;
+-        const addr = [lead.address, lead.city, lead.state, lead.zip_code].filter(Boolean).join(", ");
++        const lead = currentLead || manualMatchedContact;
++        if (!lead) return null;
++        const addr = [lead.contact?.address || lead.address, lead.contact?.city || lead.city, lead.contact?.state || lead.state, lead.contact?.zip_code || lead.zip_code].filter(Boolean).join(", ");
+         return (
+           <TechnicianAppointmentModal
+             open={showTechApptModal}
+             onOpenChange={setShowTechApptModal}
+             defaultContactId={lead.contact_id}
+-            defaultContactLabel={`${lead.first_name} ${lead.last_name}`.trim()}
++            defaultContactLabel={`${lead.contact?.first_name || lead.first_name || ""} ${lead.contact?.last_name || lead.last_name || ""}`.trim()}
+             defaultLeadAddress={addr}
+-            defaultCampaignId={campaignId}
++            defaultCampaignId={currentLead?.campaign_id || campaignId}
+           />
+         );
+       })()}
+@@ -761,12 +784,12 @@ export default function Dialer() {
+         <WrapUpModal
+           open={showWrapUp}
+           contactId={currentLead.contact_id}
+-          contactName={`${currentLead.first_name} ${currentLead.last_name}`}
+-          contactAddress={currentLead.address}
+-          contactCity={currentLead.city}
+-          contactState={currentLead.state}
+-          contactZip={currentLead.zip_code}
+-          campaignId={campaignId}
++          contactName={`${currentLead.contact?.first_name || ""} ${currentLead.contact?.last_name || ""}`}
++          contactAddress={currentLead.contact?.address || null}
++          contactCity={currentLead.contact?.city || null}
++          contactState={currentLead.contact?.state || null}
++          contactZip={currentLead.contact?.zip_code || null}
++          campaignId={currentLead.campaign_id || campaignId}
+           callAttemptId={lastCallAttemptId}
+           callDuration={lastCallDuration}
+           initialNotes={notes}
+@@ -782,8 +805,7 @@ export default function Dialer() {
+       <ScriptDrawer
+         campaignId={campaignId}
+         firstName={
+-          dailyCurrentLead?.contact?.first_name ||
+-          currentLead?.first_name ||
++          currentLead?.contact?.first_name ||
+           manualMatchedContact?.first_name ||
+           null
+         }
+diff --git a/src/pages/LeadAssignment.tsx b/src/pages/LeadAssignment.tsx
+index 66ef349..e1301db 100644
+--- a/src/pages/LeadAssignment.tsx
++++ b/src/pages/LeadAssignment.tsx
+@@ -55,7 +55,7 @@ export default function LeadAssignment() {
+ 
+     const rows = (agentsRes.data ?? []) as any[];
+     const userIds = rows.map((r) => r.user_id);
+-    let profileMap: Record<string, { display_name: string | null; email: string | null }> = {};
++    const profileMap: Record<string, { display_name: string | null; email: string | null }> = {};
+     if (userIds.length) {
+       const { data: profs } = await supabase
+         .from("profiles")
+@@ -65,7 +65,7 @@ export default function LeadAssignment() {
+         profileMap[p.user_id] = { display_name: p.display_name, email: p.email };
+       });
+     }
+-    let counts: Record<string, number> = {};
++    const counts: Record<string, number> = {};
+     if (userIds.length) {
+       const { data: ccRows } = await supabase
+         .from("campaign_contacts")
+diff --git a/supabase/.temp/cli-latest b/supabase/.temp/cli-latest
+index 3f309c0..6c6e9b6 100644
+--- a/supabase/.temp/cli-latest
++++ b/supabase/.temp/cli-latest
+@@ -1 +1 @@
+-v2.99.0
+\ No newline at end of file
++v2.100.0
+\ No newline at end of file

@@ -1,0 +1,61 @@
+This is a React TypeScript CRM power dialer web app.
+Stack: React, TypeScript, Supabase (database + edge functions),
+LiveKit Cloud (WebRTC browser SDK: livekit-client) + Telnyx SIP trunk for PSTN.
+Goal: Full production deployment. Fix ALL bugs, errors, and
+broken logic across the entire codebase.
+
+## Architecture
+
+- Browser WebRTC: LiveKit Cloud rooms via `livekit-client` SDK
+- PSTN calls: Telnyx SIP trunk connected to LiveKit SIP bridge (server-side only)
+- Call flow: agent browser joins LiveKit room → edge fn creates outbound SIP participant → Telnyx dials the lead
+- Recording: LiveKit Egress (server-side composite, audio-only OGG)
+
+## Key files
+
+- Dialer page: src/pages/Dialer.tsx
+- Dialer queue hook: src/hooks/use-dialer-queue.ts (campaignId param, flat QueueContact shape)
+- LiveKit browser hook: src/hooks/use-livekit-client.ts (dial/hangUp/toggleMute/toggleHold/sendDTMF)
+- Campaign phone pool: src/hooks/use-campaign-phones.ts
+- Dialer service (predictive): src/lib/dialer-service.ts
+- Edge functions: supabase/functions/livekit-call-control/ (dial/hangup/transfer)
+                  supabase/functions/livekit-token/ (browser JWT)
+                  supabase/functions/livekit-webhook/ (room events)
+                  supabase/functions/power-dialer-next/ (next lead for agent)
+
+## REMOVED — do not reference or recreate
+
+- Telnyx WebRTC SDK / TelnyxRTC browser calls (fully removed 2026-05-12)
+- use-telnyx.ts, useTelnyxDialer.ts, telnyx-config.ts, TelnyxTokenTest.tsx
+- Edge functions: telnyx-create-call, telnyx-credential-token, telnyx-token,
+  telnyx-verify-credentials, telnyx-webhook, vonage-token, vonage-call-control
+
+## Required environment variables
+
+Client-side (VITE_ prefix):
+  VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
+
+Edge function secrets (Supabase dashboard):
+  LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+  TELNYX_API_KEY, TELNYX_SIP_TRUNK_ID
+  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+
+## Rules
+
+- Do not change database schema without flagging it first
+- Always explain what was broken and why the fix works
+- Flag any missing environment variables
+- Preserve all existing functionality when refactoring
+- QueueContact from use-dialer-queue has FLAT fields (no nested contact.* subobject)
+- dialingRef.current must be reset on ALL exit paths in dial() — success stays true, failure/early-return sets false
+
+## Checks
+
+Before committing changes, run `/check` to validate against `.continue/checks/*.md`. 
+Current checks:
+- no-console-logging: Flags console.log/warn/error in production UI code
+- audit-coverage: Ensures high-signal actions call logEvent() for compliance
+- livekit-state-patterns: Validates telephony code follows async state/cleanup patterns
+
+All checks must pass or be explicitly acknowledged before merging.
+See docs.continue.dev/checks/running-locally for details.

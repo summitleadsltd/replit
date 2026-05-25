@@ -1,0 +1,10 @@
+1e2c0cd fix: syntax error in livekit-call-control type cast
+74f8599 fix: resolve all bugs and console logging issues for production deployment
+b0d956f Fix bulk_assign_leads to use CTE instead of ARRAY_AGG
+84a4c03 Fix bulk_assign_leads query returns two rows error
+612ee92 Add error handling to bulk_assign_leads functions
+574acdf Fix LIMIT syntax error in bulk_unassign_leads function
+908cd80 Fix DialogContent accessibility warnings
+be2dd59 Create bulk_assign_leads and bulk_unassign_leads RPC functions
+dfa454b Fix ambiguous column reference in check_recording_tables migration
+43c7182 Fix recordings table to reference call_attempts instead of call_logs

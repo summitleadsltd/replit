@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "check": {
+      "source": "continuedev/skills",
+      "sourceType": "github",
+      "skillPath": "check/SKILL.md",
+      "computedHash": "cb8628001e6326af7e69f6c5d441280b1d0cd1b477992cb99e8e0e98ae7c242b"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Summit Field App",
+    "slug": "summit-field-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111827"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.summitleadsltd.fieldapp",
+      "associatedDomains": [
+        "applinks:app.summitleadsltd.com"
+      ]
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#111827"
+      },
+      "package": "com.summitleadsltd.fieldapp",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "app.summitleadsltd.com",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/logo.png"
+    },
+    "scheme": "summitleads",
+    "extra": {
+      "eas": {
+        "projectId": "3258cd76-17a9-425b-9574-914277824f97"
+      }
+    }
+  }
+}
