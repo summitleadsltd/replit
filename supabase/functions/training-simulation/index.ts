@@ -187,64 +187,86 @@ serve(async (req) => {
 
     const { scenario, difficulty, transcript, mode, campaign_id } = requestBody;
 
-    // Preferred: OpenAI direct (set OPENAI_API_KEY in Supabase Edge Function secrets).
-    // Fallback: apifreellm.com via APIFREE_API_KEY (blocks datacenter IPs on free tier).
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    // Resolve LLM provider in priority order:
+    //   1. OpenRouter (if OPENROUTER_API_KEY set, or OPENAI_API_KEY happens
+    //      to be an `sk-or-...` OpenRouter key)
+    //   2. OpenAI direct (real OpenAI sk- key)
+    //   3. apifreellm fallback
+    const openrouterKey =
+      Deno.env.get("OPENROUTER_API_KEY") ??
+      (Deno.env.get("OPENAI_API_KEY")?.startsWith("sk-or-")
+        ? Deno.env.get("OPENAI_API_KEY")
+        : undefined);
+    const openrouterModel = Deno.env.get("OPENROUTER_MODEL") ?? "openai/gpt-4o-mini";
+
+    const openaiKey =
+      !openrouterKey && Deno.env.get("OPENAI_API_KEY")?.startsWith("sk-")
+        ? Deno.env.get("OPENAI_API_KEY")
+        : undefined;
     const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+
     const apiKey = Deno.env.get("APIFREE_API_KEY");
-    if (!openaiKey && !apiKey) {
-      console.error("Neither OPENAI_API_KEY nor APIFREE_API_KEY configured");
-      return new Response(JSON.stringify({ error: "AI service not configured. Add OPENAI_API_KEY in Supabase Edge Function secrets." }), {
+    if (!openrouterKey && !openaiKey && !apiKey) {
+      console.error("No LLM key configured (OPENROUTER_API_KEY, OPENAI_API_KEY, or APIFREE_API_KEY)");
+      return new Response(JSON.stringify({ error: "AI service not configured." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     /**
-     * Unified LLM call. When OPENAI_API_KEY is present we call OpenAI chat
-     * completions; otherwise we fall back to the existing apifreellm endpoint.
-     * Returns the assistant text (string).
+     * Unified LLM call. Returns the assistant text (string).
      */
     async function callLLM(prompt: string, opts?: { jsonMode?: boolean }): Promise<{ ok: true; text: string } | { ok: false; status: number; body: string }> {
-      if (openaiKey) {
-        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      const messages = [
+        { role: "system", content: "You are a helpful assistant. Follow the user's instructions exactly." },
+        { role: "user", content: prompt },
+      ];
+
+      if (openrouterKey) {
+        const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${openaiKey}`,
+            Authorization: `Bearer ${openrouterKey}`,
             "Content-Type": "application/json",
+            "HTTP-Referer": Deno.env.get("APP_URL") ?? "https://crm.summitleadsltd.com",
+            "X-Title": "Summit Leads CRM",
           },
           body: JSON.stringify({
-            model: openaiModel,
-            messages: [
-              { role: "system", content: "You are a helpful assistant. Follow the user's instructions exactly." },
-              { role: "user", content: prompt },
-            ],
+            model: openrouterModel,
+            messages,
             temperature: 0.7,
             ...(opts?.jsonMode ? { response_format: { type: "json_object" } } : {}),
           }),
         });
-        if (!resp.ok) {
-          const body = await resp.text();
-          return { ok: false, status: resp.status, body };
-        }
+        if (!resp.ok) return { ok: false, status: resp.status, body: await resp.text() };
         const data = await resp.json();
-        const text = data?.choices?.[0]?.message?.content ?? "";
-        return { ok: true, text };
+        return { ok: true, text: data?.choices?.[0]?.message?.content ?? "" };
+      }
+
+      if (openaiKey) {
+        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: openaiModel,
+            messages,
+            temperature: 0.7,
+            ...(opts?.jsonMode ? { response_format: { type: "json_object" } } : {}),
+          }),
+        });
+        if (!resp.ok) return { ok: false, status: resp.status, body: await resp.text() };
+        const data = await resp.json();
+        return { ok: true, text: data?.choices?.[0]?.message?.content ?? "" };
       }
 
       // apifreellm fallback
       const resp = await fetch("https://apifreellm.com/api/v1/chat", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ message: prompt }),
       });
-      if (!resp.ok) {
-        const body = await resp.text();
-        return { ok: false, status: resp.status, body };
-      }
+      if (!resp.ok) return { ok: false, status: resp.status, body: await resp.text() };
       const data = await resp.json();
       return { ok: true, text: data.response ?? "" };
     }

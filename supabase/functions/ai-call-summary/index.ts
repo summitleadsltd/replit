@@ -135,18 +135,53 @@ Deno.serve(async (req) => {
       return json({ error: "No transcript found for this call attempt" }, 400);
     }
 
-    // Prefer OpenAI direct (set OPENAI_API_KEY in Supabase Edge Function secrets).
-    // Fall back to the api-free-llm endpoint when only the legacy key is configured.
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    // Resolve LLM provider in priority order:
+    //   1. OpenRouter (if OPENROUTER_API_KEY or `sk-or-` shaped OPENAI_API_KEY)
+    //   2. OpenAI direct (real `sk-` OpenAI key)
+    //   3. apifreellm fallback
+    const openrouterKey =
+      Deno.env.get("OPENROUTER_API_KEY") ??
+      (Deno.env.get("OPENAI_API_KEY")?.startsWith("sk-or-")
+        ? Deno.env.get("OPENAI_API_KEY")
+        : undefined);
+    const openrouterModel = Deno.env.get("OPENROUTER_MODEL") ?? "openai/gpt-4o-mini";
+
+    const openaiKey =
+      !openrouterKey && Deno.env.get("OPENAI_API_KEY")?.startsWith("sk-")
+        ? Deno.env.get("OPENAI_API_KEY")
+        : undefined;
     const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+
     const apiKey = Deno.env.get("API_FREE_LLM_API_KEY");
     const legacyModel = Deno.env.get("API_FREE_LLM_MODEL") ?? "default";
-    if (!openaiKey && !apiKey) {
-      return json({ error: "AI service not configured. Add OPENAI_API_KEY to Supabase Edge Function secrets." }, 500);
+    if (!openrouterKey && !openaiKey && !apiKey) {
+      return json({ error: "AI service not configured." }, 500);
     }
 
     let aiRes: Response;
-    if (openaiKey) {
+    let summarySource: string;
+    if (openrouterKey) {
+      summarySource = "openrouter";
+      aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openrouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": Deno.env.get("APP_URL") ?? "https://crm.summitleadsltd.com",
+          "X-Title": "Summit Leads CRM",
+        },
+        body: JSON.stringify({
+          model: openrouterModel,
+          max_tokens: 800,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: transcript },
+          ],
+        }),
+      });
+    } else if (openaiKey) {
+      summarySource = "openai";
       aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -164,6 +199,7 @@ Deno.serve(async (req) => {
         }),
       });
     } else {
+      summarySource = "api-free-llm";
       aiRes = await fetch("https://api.free-llm-api.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -206,7 +242,7 @@ Deno.serve(async (req) => {
       sentiment: parsed.sentiment ?? null,
       objections: parsed.objections ?? [],
       created_at: new Date().toISOString(),
-      summary_source: openaiKey ? "openai" : "api-free-llm",
+      summary_source: summarySource,
       generation_status: "complete",
     });
 

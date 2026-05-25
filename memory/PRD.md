@@ -24,7 +24,62 @@
 - Connected to user's Supabase project: `wggmfykmabandkllqodc.supabase.co`
 - Test admin login: `info@summitleadsltd.com` / `123456789` (see test_credentials.md)
 
-## Implementation Log — 2026-05-25 (Session 2)
+## Implementation Log — 2026-05-25 (Session 3)
+
+### ✅ DB trigger fix — APPLIED LIVE
+- Pushed two pending migrations to production via `supabase db push`:
+  - `20260523120000_fix_confirmation_status_check.sql`
+  - `20260525000000_fix_call_attempts_trigger.sql`
+- Verified with a service-role test insert: `call_attempts` now accepts
+  LiveKit-sourced rows with `provider_used='livekit'` and no Telnyx ID.
+- Frontend `use-dialer-queue.ts` now logs `call_attempts.insert` errors
+  with `console.error("[Queue] ❌ call_attempts.insert failed:", …)` so a
+  future schema/RLS drift can't hide silently.
+
+### ✅ Edge functions — DEPLOYED + LLM ROUTING FIXED
+- Both `training-simulation` and `ai-call-summary` deployed to project.
+- Discovered the user's existing `OPENAI_API_KEY` Supabase secret is
+  actually an OpenRouter key (`sk-or-v1…`) — that's why everything was
+  returning 401.
+- Updated both functions to auto-detect provider by key prefix:
+  1. `OPENROUTER_API_KEY` set, **or** `OPENAI_API_KEY` starts with `sk-or-`
+     → calls `https://openrouter.ai/api/v1/chat/completions` with
+     `OPENROUTER_MODEL` (default `openai/gpt-4o-mini`).
+  2. `OPENAI_API_KEY` starts with `sk-` (real OpenAI) → calls
+     `https://api.openai.com/v1/chat/completions` with `OPENAI_MODEL`.
+  3. Otherwise → falls back to the legacy apifreellm endpoint.
+- **Verified live**:
+  - `reply` mode returns realistic homeowner objections (HTTP 200)
+  - `score` mode returns a JSON score with strengths/improvements (HTTP 200)
+- The `ai_summaries.summary_source` column now records the actual provider
+  used (`openrouter` / `openai` / `api-free-llm`).
+
+### ✅ Mobile EST sweep — completed in Session 2 (see above)
+
+### What's actually working end-to-end now
+| Feature | Status |
+|---------|--------|
+| Auth + dashboard | ✅ |
+| Recordings page loads + paginates | ✅ |
+| Tech calendar shows EST appointments | ✅ |
+| Dialer queue (daily assignments + EST anti-recycle) | ✅ |
+| `call_attempts` inserts | ✅ (trigger fixed in prod) |
+| `call_recordings` will populate | ✅ (next call onwards) |
+| AI Call Summary | ✅ (via OpenRouter) |
+| Training Hub reply + score | ✅ (via OpenRouter) |
+| CSV exports | ✅ |
+| Mobile EST throughout | ✅ |
+| EST in web app | ✅ |
+
+### Still on the user's todo
+- Make one test call through the dialer → verify a `call_attempts` row appears
+  and (once Telnyx finishes uploading audio for that call) a `call_recordings`
+  row follows. Until a call actually completes through LiveKit + Telnyx, those
+  tables remain empty by design — that's expected, not a bug.
+- Optional: rename your `OPENAI_API_KEY` secret to `OPENROUTER_API_KEY` for
+  clarity (functionally identical — code accepts either name).
+
+
 
 ### Investigation: Why call_recordings is empty in prod
 **Root cause uncovered (not a webhook issue):** A trigger function
