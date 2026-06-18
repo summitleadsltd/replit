@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarClock, MapPin, User, Search, Wrench } from "lucide-react";
+import { CalendarClock, MapPin, User, Search, Wrench, Navigation } from "lucide-react";
 import { format, isToday, isTomorrow, isThisWeek } from "date-fns";
 import { toESTDate } from "@/lib/timezone";
 import { useAuth } from "@/hooks/use-auth";
@@ -200,6 +200,35 @@ export default function Appointments() {
       toast({ title: "Reschedule failed", description: err.message || "Could not reschedule", variant: "destructive" });
     } finally {
       setRescheduling(null);
+    }
+  }
+
+  function openNavigation(appointment: Appointment) {
+    const address = [appointment.address, appointment.city, appointment.state, appointment.zip_code]
+      .filter(Boolean)
+      .join(", ");
+    
+    if (!address) {
+      toast({ title: "No address", description: "This appointment has no address", variant: "destructive" });
+      return;
+    }
+
+    // Detect if mobile device
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // Use native navigation on mobile
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      if (isAndroid) {
+        // Android: Use google.navigation scheme
+        window.location.href = `google.navigation:q=${encodeURIComponent(address)}`;
+      } else {
+        // iOS: Use maps.google.com with daddr parameter
+        window.location.href = `https://maps.google.com/?daddr=${encodeURIComponent(address)}`;
+      }
+    } else {
+      // Desktop: Open Google Maps in new tab
+      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, '_blank');
     }
   }
 
@@ -400,6 +429,12 @@ export default function Appointments() {
                       </div>
 
                       <div className="flex gap-2">
+                        {(a.address || a.city) && (
+                          <Button size="sm" variant="outline" onClick={() => openNavigation(a)}>
+                            <Navigation className="w-4 h-4 mr-1" />
+                            Navigate
+                          </Button>
+                        )}
                         {a.status === "booked" && (
                           <Button size="sm" variant="outline" onClick={() => updateStatus(a.id, "confirmed")}>
                             Confirm

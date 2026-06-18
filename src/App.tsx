@@ -11,6 +11,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import AppLayout from "@/components/layout/AppLayout";
 import RoleGuard from "@/components/layout/RoleGuard";
 
+const Landing = lazy(() => import("@/pages/Landing"));
 const Auth = lazy(() => import("@/pages/Auth"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const SetPassword = lazy(() => import("@/pages/SetPassword"));
@@ -45,6 +46,13 @@ const UserProfile = lazy(() => import("@/pages/UserProfile"));
 const TechnicianAvailability = lazy(() => import("@/pages/TechnicianAvailability"));
 const Confirmations = lazy(() => import("@/pages/Confirmations"));
 const CallHistory = lazy(() => import("@/pages/CallHistory"));
+
+// SolarScout UK pages
+const SolarDashboard = lazy(() => import("@/pages/SolarDashboard"));
+const SolarProspects = lazy(() => import("@/pages/SolarProspects"));
+const SolarSettings = lazy(() => import("@/pages/SolarSettings"));
+const SolarOnboarding = lazy(() => import("@/pages/SolarOnboarding"));
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -126,9 +134,13 @@ const App = () => (
           <MobileAuthHandler />
           <Suspense fallback={<LazyFallback />}>
             <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/set-password" element={<SetPassword />} />
+              
+              {/* Protected routes */}
               <Route
                 element={
                   <AuthGuard>
@@ -229,6 +241,20 @@ const App = () => (
 
                 <Route path="/client-portal" element={
                   <RoleGuard allowedRoles={["client", "admin"]}><ClientPortal /></RoleGuard>
+                } />
+
+                {/* SolarScout UK Routes */}
+                <Route path="/solar-dashboard" element={
+                  <RoleGuard allowedRoles={["admin", "manager"]}><SolarDashboard /></RoleGuard>
+                } />
+                <Route path="/solar-prospects" element={
+                  <RoleGuard allowedRoles={["admin", "manager", "agent"]}><SolarProspects /></RoleGuard>
+                } />
+                <Route path="/solar-settings" element={
+                  <RoleGuard allowedRoles={["admin"]}><SolarSettings /></RoleGuard>
+                } />
+                <Route path="/solar-onboarding" element={
+                  <SolarOnboarding />
                 } />
               </Route>
               <Route path="*" element={<NotFound />} />

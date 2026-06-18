@@ -210,8 +210,7 @@ export default function TechnicianCalendar() {
               {hours.map((h) => (
                 <div
                   key={h}
-                  className="text-[10px] text-muted-foreground text-right pr-2 -mt-2"
-                  style={{ height: `${SLOT_HEIGHT}px` }}
+                  className="text-[10px] text-muted-foreground text-right pr-2 -mt-2 h-12"
                 >
                   {h.toString().padStart(2, "0")}:00
                 </div>
@@ -253,8 +252,7 @@ export default function TechnicianCalendar() {
 
                   {/* Time grid */}
                   <div
-                    className={`relative ${readOnly ? "" : "cursor-pointer"}`}
-                    style={{ height: `${(HOUR_END - HOUR_START + 1) * SLOT_HEIGHT}px` }}
+                    className={`relative h-[624px] ${readOnly ? "" : "cursor-pointer"}`}
                     onClick={(e) => {
                       if (readOnly) return;
                       if ((e.target as HTMLElement).closest("[data-appt]")) return;
@@ -264,8 +262,7 @@ export default function TechnicianCalendar() {
                     {hours.map((h) => (
                       <div
                         key={h}
-                        className="border-b border-border/40"
-                        style={{ height: `${SLOT_HEIGHT}px` }}
+                        className="border-b border-border/40 h-12"
                       />
                     ))}
                     {appts.map((a) => (

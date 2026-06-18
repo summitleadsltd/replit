@@ -79,14 +79,29 @@ interface TechAppt {
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: "bg-primary/15 text-primary border-primary/30",
-  en_route: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  on_site: "bg-purple-500/15 text-purple-300 border-purple-500/30",
+  confirmed: "bg-green-500/15 text-green-300 border-green-500/30",
+  on_route: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  arrived: "bg-purple-500/15 text-purple-300 border-purple-500/30",
+  in_progress: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+  inspection_complete: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
   completed: "bg-green-500/15 text-green-300 border-green-500/30",
+  rescheduled: "bg-orange-500/15 text-orange-300 border-orange-500/30",
   cancelled: "bg-muted text-muted-foreground border-border",
   no_show: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
-const STATUS_OPTIONS = ["scheduled", "en_route", "on_site", "completed", "cancelled", "no_show"];
+const STATUS_OPTIONS = [
+  "scheduled",
+  "confirmed",
+  "on_route",
+  "arrived",
+  "in_progress",
+  "inspection_complete",
+  "completed",
+  "rescheduled",
+  "cancelled",
+  "no_show",
+];
 
 export default function TechnicianDashboard() {
   const { user, isAdmin, isTechnician } = useAuth();

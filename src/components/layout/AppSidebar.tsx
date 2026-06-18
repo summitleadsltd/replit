@@ -33,6 +33,8 @@ import {
   Calendar,
   PhoneForwarded,
   History,
+  Sun,
+  Sparkles,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,6 +74,10 @@ const allNavItems: NavItem[] = [
   { to: "/clients", icon: Briefcase, label: "Clients", roles: ["admin", "manager", "agent", "team_leader"] },
   { to: "/reports", icon: BarChart3, label: "Reports", roles: ["admin", "manager", "team_leader"] },
   { to: "/settings", icon: Settings, label: "Settings", roles: ["admin"] },
+  { to: "/solar-dashboard", icon: Sun, label: "Solar Dashboard", roles: ["admin", "manager"] },
+  { to: "/solar-prospects", icon: Users, label: "Solar Prospects", roles: ["admin", "manager", "agent"] },
+  { to: "/solar-settings", icon: Settings, label: "Solar Settings", roles: ["admin"] },
+  { to: "/solar-onboarding", icon: Sparkles, label: "Solar Onboard", roles: ["admin", "manager"] },
   { to: "/team-dashboard", icon: Headphones, label: "Team Monitor", roles: ["admin", "manager", "team_leader"] },
   { to: "/qa-dashboard", icon: Star, label: "QA Scoring", roles: ["admin", "team_leader"] },
   { to: "/agent-performance", icon: BarChart2, label: "Agent Perf", roles: ["admin", "team_leader"] },

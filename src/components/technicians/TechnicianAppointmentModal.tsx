@@ -21,7 +21,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { CalendarIcon, Search } from "lucide-react";
+import { CalendarIcon, Search, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,9 +50,13 @@ interface Props {
 
 const STATUSES: TechApptStatus[] = [
   "scheduled",
-  "en_route",
-  "on_site",
+  "confirmed",
+  "on_route",
+  "arrived",
+  "in_progress",
+  "inspection_complete",
   "completed",
+  "rescheduled",
   "cancelled",
   "no_show",
 ];
@@ -575,6 +579,26 @@ export default function TechnicianAppointmentModal({
     onOpenChange(false);
   };
 
+  // Open Google Maps navigation
+  const openNavigation = () => {
+    if (!leadAddress.trim()) return;
+    
+    const encodedAddress = encodeURIComponent(leadAddress.trim());
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    
+    if (isAndroid) {
+      // Android: Use google.navigation:// scheme for native navigation
+      window.location.href = `google.navigation:q=${encodedAddress}`;
+    } else if (isIOS) {
+      // iOS: Use maps.google.com URL scheme
+      window.location.href = `https://maps.google.com/?daddr=${encodedAddress}`;
+    } else {
+      // Desktop: Open Google Maps in new tab
+      window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
@@ -758,7 +782,20 @@ export default function TechnicianAppointmentModal({
 
           <div>
             <Label>Lead address</Label>
-            <Textarea value={leadAddress} onChange={(e) => setLeadAddress(e.target.value)} rows={2} />
+            <div className="flex gap-2">
+              <Textarea value={leadAddress} onChange={(e) => setLeadAddress(e.target.value)} rows={2} className="flex-1" />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={openNavigation}
+                disabled={!leadAddress.trim()}
+                title="Navigate to address"
+                className="mt-0"
+              >
+                <MapPin className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Auto-assign best technician */}
