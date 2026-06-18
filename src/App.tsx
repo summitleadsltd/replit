@@ -46,6 +46,12 @@ const UserProfile = lazy(() => import("@/pages/UserProfile"));
 const TechnicianAvailability = lazy(() => import("@/pages/TechnicianAvailability"));
 const Confirmations = lazy(() => import("@/pages/Confirmations"));
 const CallHistory = lazy(() => import("@/pages/CallHistory"));
+n// Comparison pages
+const JobNimbusComparison = lazy(() => import("@/pages/compare/JobNimbus"));
+const ServiceTitanComparison = lazy(() => import("@/pages/compare/ServiceTitan"));
+const HousecallProComparison = lazy(() => import("@/pages/compare/HousecallPro"));
+const GoHighLevelComparison = lazy(() => import("@/pages/compare/GoHighLevel"));
+const HubSpotComparison = lazy(() => import("@/pages/compare/HubSpot"));
 
 // SolarScout UK pages
 const SolarDashboard = lazy(() => import("@/pages/SolarDashboard"));
@@ -139,6 +145,12 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/set-password" element={<SetPassword />} />
+n              {/* Comparison routes */}
+              <Route path="/compare/jobnimbus" element={<JobNimbusComparison />} />
+              <Route path="/compare/servicetitan" element={<ServiceTitanComparison />} />
+              <Route path="/compare/housecall-pro" element={<HousecallProComparison />} />
+              <Route path="/compare/gohighlevel" element={<GoHighLevelComparison />} />
+              <Route path="/compare/hubspot" element={<HubSpotComparison />} />
               
               {/* Protected routes */}
               <Route

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import summitLogo from "@/assets/summit-logo.webp";
 import SubscriptionModal from "@/components/payment/SubscriptionModal";
 import {
@@ -15,21 +14,29 @@ import {
   Wrench,
   FileText,
   CheckCircle,
-  Zap,
-  BarChart3,
-  Shield,
-  Clock,
-  MapPin,
-  Smartphone,
-  TrendingUp,
-  Target,
-  Workflow,
-  Sparkles,
+  Check,
+  X,
   ArrowRight,
   Star,
   ChevronRight,
   Menu,
-  X,
+  X as XIcon,
+  CalendarClock,
+  Route,
+  Sparkles,
+  TrendingUp,
+  Zap,
+  Shield,
+  Smartphone,
+  Globe,
+  BarChart,
+  Users as UsersIcon,
+  Navigation,
+  CheckSquare,
+  Radio,
+  DollarSign,
+  Building2,
+  Clock as ClockIcon,
 } from "lucide-react";
 
 export default function Landing() {
@@ -38,12 +45,16 @@ export default function Landing() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<{ name: string; price: number } | undefined>();
+  const [showComparison, setShowComparison] = useState(false);
+  const [showFAQ, setShowFAQ] = useState(false);
+  const [activeFAQ, setActiveFAQ] = useState<number | null>(null);
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
 
   const handleGetStarted = () => {
     if (email) {
       navigate("/auth", { state: { email } });
     } else {
-      navigate("/auth");
+      setShowComparison(true);
     }
   };
 
@@ -56,168 +67,132 @@ export default function Landing() {
     setSubscriptionModalOpen(true);
   };
 
-  const features = [
-    {
-      icon: Phone,
-      title: "Predictive Dialer",
-      description: "AI-powered dialing that connects agents with leads 3x faster. Skip voicemas, maximize talk time.",
-    },
-    {
-      icon: MessageSquare,
-      title: "Multi-Channel Communication",
-      description: "SMS, Email, and WhatsApp automation in one platform. Reach leads where they are.",
-    },
-    {
-      icon: Calendar,
-      title: "Smart Appointment Scheduling",
-      description: "Automated booking, technician assignment, and route optimization. No more scheduling conflicts.",
-    },
-    {
-      icon: Users,
-      title: "Complete CRM",
-      description: "Lead management, contact history, and activity tracking from first contact to final sale.",
-    },
-    {
-      icon: Wrench,
-      title: "Technician Mobile App",
-      description: "GPS tracking, on-route mode, arrival verification, and inspection workflows in the field.",
-    },
-    {
-      icon: FileText,
-      title: "Digital Proposals & Contracts",
-      description: "PDF generation, e-signature integration, and contract workflow automation.",
-    },
-    {
-      icon: Target,
-      title: "Lead Qualification Scoring",
-      description: "AI-powered scoring based on inspection data. Automatically identify hot leads.",
-    },
-    {
-      icon: Workflow,
-      title: "Sales Pipeline Management",
-      description: "Visual pipeline from lead to close. Track every opportunity through automated stages.",
-    },
-    {
-      icon: Sparkles,
-      title: "AI Automation",
-      description: "Call summaries, inspection reports, and predictive analytics powered by artificial intelligence.",
-    },
+  const toggleFAQ = (index: number) => {
+    setActiveFAQ(activeFAQ === index ? null : index);
+  };
+
+  const getAnnualPrice = (monthlyPrice: number) => {
+    return Math.round(monthlyPrice * 12 * 0.8); // 20% discount for yearly
+  };
+
+  const getCurrentPrice = (price: number) => {
+    return billingCycle === "monthly" ? price : getAnnualPrice(price);
+  };
+
+  const starterFeatures = [
+    "Lead Management",
+    "Contact Management",
+    "Import Leads",
+    "Campaign Management",
+    "Calendar Scheduling",
+    "Technician Assignment",
+    "Dispatch Center",
+    "Route Optimization",
+    "Customer Appointment Confirmations",
+    "Technician Mobile App",
+    "GPS Navigation Button",
+    "Photo Uploads",
+    "Inspection Outcomes",
+    "Dashboard Reporting",
   ];
 
-  const workflowSteps = [
-    {
-      step: "1",
-      title: "Lead Generation",
-      description: "Import from Facebook, Google Ads, website forms, or CSV. Automatic lead capture and distribution.",
-    },
-    {
-      step: "2",
-      title: "Intelligent Outreach",
-      description: "Predictive dialer calls agents while SMS sequences nurture leads. AI prioritizes best prospects.",
-    },
-    {
-      step: "3",
-      title: "Appointment Booking",
-      description: "Automated scheduling with technician assignment. Route optimization and customer notifications.",
-    },
-    {
-      step: "4",
-      title: "On-Site Inspection",
-      description: "Technician mobile app with GPS verification. Multi-step inspection wizard with photo uploads.",
-    },
-    {
-      step: "5",
-      title: "Auto Qualification",
-      description: "AI scores leads based on property, electrical, and customer data. Hot leads auto-assigned to closers.",
-    },
-    {
-      step: "6",
-      title: "Proposal & Contract",
-      description: "Digital proposals sent instantly. E-signature contracts. Automated installation scheduling.",
-    },
-    {
-      step: "7",
-      title: "Installation Management",
-      description: "Crew scheduling, materials tracking, and installation status updates. Customer portal for transparency.",
-    },
-    {
-      step: "8",
-      title: "Completion & Referral",
-      description: "Automatic review requests, referral tracking, and customer satisfaction monitoring.",
-    },
+  const professionalFeatures = [
+    ...starterFeatures,
+    "Power Dialer",
+    "Predictive Dialer",
+    "Call Recording",
+    "Dispositions",
+    "Callbacks",
+    "Opportunity Pipeline",
+    "Inspection-to-Sales Handoff",
+    "Lead Qualification Scoring",
+    "Proposal Tracking",
+    "Activity Timeline",
+    "AI Call Summaries",
+    "Team Performance Dashboard",
+    "Sales Forecasting",
+  ];
+
+  const enterpriseFeatures = [
+    ...professionalFeatures,
+    "SMS Campaigns",
+    "SMS Inbox",
+    "Email Campaigns",
+    "Email Automation",
+    "WhatsApp Messaging",
+    "WhatsApp Campaigns",
+    "Chatwoot Unified Inbox",
+    "n8n Workflow Automation",
+    "AI Inspection Summaries",
+    "AI Lead Scoring",
+    "AI Route Optimization",
+    "Multi-Provider Telephony",
+    "Client Portal",
+    "Customer Tracking Links",
+    "Installation Management",
+    "Crew Management",
+    "API Access",
+    "White Label Options",
+    "Priority Support",
   ];
 
   const pricingPlans = [
     {
       name: "Starter",
+      title: "Appointment Scheduling",
       price: 299,
-      description: "Perfect for small teams getting started",
-      features: [
-        "Up to 5 users",
-        "Basic CRM",
-        "Email marketing",
-        "Appointment scheduling",
-        "Mobile technician app",
-        "Basic reporting",
-        "Email support",
-      ],
+      users: 5,
+      description: "Perfect for appointment setters, solar lead generation companies, call centers, and small home-service businesses.",
+      features: starterFeatures,
+      excluded: ["Dialer", "SMS", "Email", "WhatsApp", "Sales Pipeline"],
       popular: false,
     },
     {
       name: "Professional",
+      title: "Appointment Scheduling + Sales Workflow",
       price: 599,
-      description: "For growing businesses with full sales teams",
-      features: [
-        "Up to 20 users",
-        "Everything in Starter",
-        "Predictive dialer",
-        "SMS & WhatsApp automation",
-        "Lead qualification scoring",
-        "Sales pipeline management",
-        "Digital proposals",
-        "Advanced analytics",
-        "Priority support",
-      ],
+      users: 10,
+      description: "Everything in Starter plus sales workflow and communication tools.",
+      features: professionalFeatures,
+      excluded: ["WhatsApp", "Omnichannel Inbox", "Advanced Automation"],
       popular: true,
     },
     {
       name: "Enterprise",
+      title: "Complete Revenue Operations Platform",
       price: 1299,
-      description: "For large-scale operations with multiple locations",
-      features: [
-        "Unlimited users",
-        "Everything in Professional",
-        "Multi-location management",
-        "Custom integrations",
-        "AI automation suite",
-        "Contract management",
-        "Installation scheduling",
-        "Customer portal",
-        "Dedicated account manager",
-        "SLA guarantee",
-      ],
+      users: null,
+      description: "Everything in Professional plus complete communication and automation.",
+      features: enterpriseFeatures,
+      excluded: [],
       popular: false,
     },
   ];
 
-  const testimonials = [
+  const faqs = [
     {
-      name: "Sarah Johnson",
-      role: "CEO, SolarMax Solutions",
-      content: "We increased our close rate by 40% in the first month. The automated lead scoring alone was worth the investment.",
-      avatar: "SJ",
+      question: "Why is Summit Leads different?",
+      answer: "Unlike competitors who force you to buy features you don't need, Summit Leads lets you start with appointment scheduling and grow into a complete sales operation. You can upgrade into a full field-service + communication platform as your business grows, paying only for what you use.",
     },
     {
-      name: "Michael Chen",
-      role: "Operations Director, RoofRight",
-      content: "The technician app transformed our field operations. GPS tracking and route optimization saved us 20 hours per week.",
-      avatar: "MC",
+      question: "Do I need multiple systems?",
+      answer: "No. Summit Leads replaces the need for multiple systems like JobNibus + Dialer + SMS Tool + Email Tool + Automation Tool. One platform handles everything from appointment scheduling to customer communication.",
     },
     {
-      name: "Emily Rodriguez",
-      role: "Sales Manager, Home Improvement Pros",
-      content: "Finally, a platform that connects our entire lifecycle from lead to installation. No more disconnected systems.",
-      avatar: "ER",
+      question: "Can I import my existing leads?",
+      answer: "Yes. Summit Leads supports CSV import with column mapping, validation, and bulk assignment. You can import your existing leads from any CRM or spreadsheet.",
+    },
+    {
+      question: "Can technicians use mobile devices?",
+      answer: "Absolutely. Our technician mobile app includes GPS navigation, inspection forms, photo uploads, and real-time job updates. Technicians can manage their entire workflow from their smartphones.",
+    },
+    {
+      question: "Does it support SMS and WhatsApp?",
+      answer: "Yes, SMS and WhatsApp are included in the Professional and Enterprise plans. You can send campaigns, manage conversations, and automate customer communication across all channels.",
+    },
+    {
+      question: "Can I white-label the platform?",
+      answer: "Yes, white-label options are available in the Enterprise plan. You can customize branding, domain, and appearance to match your company identity.",
     },
   ];
 
@@ -228,23 +203,22 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
-              <img src={summitLogo} alt="Summit Voice CRM" className="h-8 w-8" />
-              <span className="font-bold text-xl">Summit Voice CRM</span>
+              <img src={summitLogo} alt="Summit Leads" className="h-8 w-8" />
+              <span className="font-bold text-xl">Summit Leads</span>
             </div>
 
-            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
+              <button onClick={() => setShowComparison(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Compare
+              </button>
+              <button onClick={() => setShowFAQ(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                FAQ
+              </button>
               <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Features
               </a>
-              <a href="#workflow" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                How It Works
-              </a>
               <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Pricing
-              </a>
-              <a href="#testimonials" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Testimonials
               </a>
             </div>
 
@@ -252,43 +226,41 @@ export default function Landing() {
               <Button variant="ghost" onClick={handleLogin}>
                 Sign In
               </Button>
-              <Button onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}>
-                Get Started
+              <Button onClick={() => setShowComparison(true)}>
+                Start Free Trial
               </Button>
             </div>
 
-            {/* Mobile menu button */}
             <button
               className="md:hidden p-2"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {isMenuOpen ? <XIcon size={24} /> : <Menu size={24} />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         {isMenuOpen && (
           <div className="md:hidden border-t border-border bg-background">
             <div className="px-4 py-4 space-y-4">
+              <button onClick={() => setShowComparison(true)} className="block text-sm text-muted-foreground hover:text-foreground">
+                Compare
+              </button>
+              <button onClick={() => setShowFAQ(true)} className="block text-sm text-muted-foreground hover:text-foreground">
+                FAQ
+              </button>
               <a href="#features" className="block text-sm text-muted-foreground hover:text-foreground">
                 Features
               </a>
-              <a href="#workflow" className="block text-sm text-muted-foreground hover:text-foreground">
-                How It Works
-              </a>
               <a href="#pricing" className="block text-sm text-muted-foreground hover:text-foreground">
                 Pricing
-              </a>
-              <a href="#testimonials" className="block text-sm text-muted-foreground hover:text-foreground">
-                Testimonials
               </a>
               <div className="pt-4 space-y-2">
                 <Button variant="ghost" className="w-full" onClick={handleLogin}>
                   Sign In
                 </Button>
-                <Button className="w-full" onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}>
-                  Get Started
+                <Button className="w-full" onClick={() => setShowComparison(true)}>
+                  Start Free Trial
                 </Button>
               </div>
             </div>
@@ -301,21 +273,15 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background pointer-events-none" />
         <div className="max-w-7xl mx-auto relative">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center space-x-2 bg-primary/10 rounded-full px-4 py-1.5 mb-8">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-primary">AI-Powered Field Service Platform</span>
-            </div>
-
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              One Platform. Complete
-              <span className="text-primary"> Lifecycle</span> Management.
+              Stop Paying For 5 Different Systems.
             </h1>
-
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              From lead generation to installation completion. Automate your entire field service operation 
-              with AI-powered dialing, intelligent scheduling, and seamless technician management.
+            <p className="text-xl text-muted-foreground mb-4">
+              Schedule Appointments, Manage Technicians, Close More Sales, And Automate Customer Communication From One Platform.
             </p>
-
+            <p className="text-sm text-muted-foreground mb-8">
+              Built specifically for solar, roofing, home improvement, HVAC, and field service businesses.
+            </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
               <div className="flex w-full sm:w-auto max-w-md">
                 <Input
@@ -325,17 +291,15 @@ export default function Landing() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="rounded-r-none border-r-0"
                 />
-                <Button onClick={handleGetStarted} className="rounded-l-none">
+                <Button onClick={handleGetStarted}>
                   Start Free Trial
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
               <Button variant="outline" onClick={handleLogin}>
-                <Clock className="mr-2 h-4 w-4" />
                 Book Demo
               </Button>
             </div>
-
             <div className="flex flex-wrap justify-center gap-8 text-sm text-muted-foreground">
               <div className="flex items-center">
                 <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
@@ -352,118 +316,298 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-16 max-w-4xl mx-auto">
+          {/* Social Proof */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16 max-w-4xl mx-auto">
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">3x</div>
-              <div className="text-sm text-muted-foreground">Faster Lead Response</div>
+              <div className="text-3xl font-bold text-primary">10,000+</div>
+              <div className="text-sm text-muted-foreground">Appointments Managed</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">40%</div>
-              <div className="text-sm text-muted-foreground">Higher Close Rate</div>
+              <div className="text-3xl font-bold text-primary">$50M+</div>
+              <div className="text-sm text-muted-foreground">Revenue Tracked</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">20h</div>
-              <div className="text-sm text-muted-foreground">Saved Per Week</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-primary">98%</div>
-              <div className="text-sm text-muted-foreground">Customer Satisfaction</div>
+              <div className="text-3xl font-bold text-primary">500+</div>
+              <div className="text-sm text-muted-foreground">High-Performance Teams</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
+      {/* Comparison Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Everything You Need to Scale
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              A complete platform built for field service businesses. Stop juggling multiple tools.
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Why Summit Leads?</h2>
+            <p className="text-lg text-muted-foreground">Built specifically for field service businesses, not generic platforms.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full bg-background rounded-lg overflow-hidden">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left p-4 font-medium">Feature</th>
+                  <th className="text-center p-4 font-medium">Summit Leads</th>
+                  <th className="text-center p-4 font-medium">JobNimbus</th>
+                  <th className="text-center p-4 font-medium">ServiceTitan</th>
+                  <th className="text-center p-4 font-medium">Housecall Pro</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border">
+                  <td className="p-4">Predictive Dialer</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">SMS Campaigns</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center">Limited</td>
+                  <td className="p-4 text-center">Limited</td>
+                  <td className="p-4 text-center">Limited</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">WhatsApp</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">AI Call Summaries</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">Dispatch Center</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">Route Optimization</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center">Limited</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center">Limited</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">Technician GPS Tracking</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center">Limited</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center">Limited</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">Inspection Workflow</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center">Partial</td>
+                  <td className="p-4 text-center">Partial</td>
+                  <td className="p-4 text-center">Partial</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="p-4">Customer Portal</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center">Limited</td>
+                </tr>
+                <tr>
+                  <td className="p-4">Multi-Tenant SaaS</td>
+                  <td className="p-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                  <td className="p-4 text-center"><X className="w-5 h-5 text-red-500 mx-auto" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+n      {/* Detailed Comparisons */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-background">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Detailed Competitor Comparisons</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              See how Summit Leads compares to other field service and CRM platforms in detail.
             </p>
           </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, index) => (
-              <Card key={index} className="border-border hover:border-primary/50 transition-colors">
-                <CardHeader>
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                    <feature.icon className="w-6 h-6 text-primary" />
-                  </div>
-                  <CardTitle className="text-lg">{feature.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">{feature.description}</p>
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <Link to="/compare/jobnimbus" className="block">
+              <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="p-6 text-center">
+                  <div className="font-semibold mb-2">JobNimbus</div>
+                  <div className="text-sm text-muted-foreground">Field Service CRM</div>
                 </CardContent>
               </Card>
-            ))}
+            </Link>
+            <Link to="/compare/servicetitan" className="block">
+              <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="p-6 text-center">
+                  <div className="font-semibold mb-2">ServiceTitan</div>
+                  <div className="text-sm text-muted-foreground">Enterprise FSM</div>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link to="/compare/housecall-pro" className="block">
+              <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="p-6 text-center">
+                  <div className="font-semibold mb-2">Housecall Pro</div>
+                  <div className="text-sm text-muted-foreground">Small Business FSM</div>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link to="/compare/gohighlevel" className="block">
+              <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="p-6 text-center">
+                  <div className="font-semibold mb-2">GoHighLevel</div>
+                  <div className="text-sm text-muted-foreground">Marketing Platform</div>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link to="/compare/hubspot" className="block">
+              <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="p-6 text-center">
+                  <div className="font-semibold mb-2">HubSpot</div>
+                  <div className="text-sm text-muted-foreground">B2B CRM</div>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Workflow Section */}
-      <section id="workflow" className="py-20 px-4 sm:px-6 lg:px-8">
+      {/* Feature Sections */}
+      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              How It Works
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              From first contact to final installation. Automate every step of your customer lifecycle.
+            <h2 className="text-3xl font-bold mb-4">One Platform, Complete Operations</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Start with appointment scheduling, grow into sales operations, upgrade into complete field-service platform.
             </p>
           </div>
 
-          <div className="relative">
-            {/* Connection Line */}
-            <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-primary/0 via-primary/50 to-primary/0 transform -translate-y-1/2" />
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {workflowSteps.map((step, index) => (
-                <div key={index} className="relative">
-                  <Card className="border-border hover:border-primary/50 transition-colors h-full">
-                    <CardHeader>
-                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold mb-4">
-                        {step.step}
-                      </div>
-                      <CardTitle className="text-lg">{step.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">{step.description}</p>
-                    </CardContent>
-                  </Card>
-
-                  {/* Arrow for mobile */}
-                  {index < workflowSteps.length - 1 && (
-                    <div className="lg:hidden flex justify-center my-4">
-                      <ChevronRight className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                  )}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <Card className="border-border hover:border-primary/50 transition-colors">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <CalendarClock className="w-6 h-6 text-primary" />
                 </div>
-              ))}
-            </div>
+                <CardTitle className="text-lg">Scheduling</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Appointment scheduling optimized by technician availability, travel time and territory.</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border hover:border-primary/50 transition-colors">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <TrendingUp className="w-6 h-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Sales</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Convert inspections into opportunities automatically with our sales handoff engine.</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border hover:border-primary/50 transition-colors">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <MessageSquare className="w-6 h-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Communication</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Call, SMS, Email and WhatsApp from one platform. Reach customers where they are.</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border hover:border-primary/50 transition-colors">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <Route className="w-6 h-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Field Operations</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Dispatch, inspections, GPS tracking and installation management in one system.</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border hover:border-primary/50 transition-colors">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <Zap className="w-6 h-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Automation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Automate follow-ups, reminders and customer journeys with AI-powered workflows.</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border hover:border-primary/50 transition-colors">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg">AI-Powered</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">AI call summaries, inspection reports, and predictive analytics to close more deals.</p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/50">
+      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Simple, Transparent Pricing
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Choose the plan that fits your business. All plans include a 14-day free trial.
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Simple Pricing, Clear Upgrade Path</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Start with what you need, upgrade as you grow. No forced feature bundles.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {pricingPlans.map((plan, index) => (
+          {/* Billing Toggle */}
+          <div className="flex justify-center mb-12">
+            <div className="inline-flex bg-muted rounded-lg p-1">
+              <button
+                onClick={() => setBillingCycle("monthly")}
+                className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingCycle === "monthly"
+                    ? "bg-background text-foreground shadow"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingCycle("yearly")}
+                className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingCycle === "yearly"
+                    ? "bg-background text-foreground shadow"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Yearly <span className="text-green-600 ml-1">Save 20%</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {pricingPlans.map((plan) => (
               <Card
-                key={index}
+                key={plan.name}
                 className={`relative border-2 ${
                   plan.popular
                     ? "border-primary shadow-lg scale-105"
@@ -473,27 +617,46 @@ export default function Landing() {
                 {plan.popular && (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                     <span className="bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full">
-                      Most Popular
+                      MOST POPULAR
                     </span>
                   </div>
                 )}
                 <CardHeader>
-                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                  <p className="text-muted-foreground text-sm">{plan.description}</p>
+                  <CardTitle className="text-2xl">{plan.title}</CardTitle>
+                  <p className="text-muted-foreground text-sm mb-4">{plan.description}</p>
                   <div className="mt-4">
-                    <span className="text-4xl font-bold">${plan.price}</span>
-                    <span className="text-muted-foreground">/month</span>
+                    <span className="text-4xl font-bold">${getCurrentPrice(plan.price)}</span>
+                    <span className="text-muted-foreground">/{billingCycle === "monthly" ? "month" : "year"}</span>
+                    {plan.users && <span className="text-sm text-muted-foreground ml-2">({plan.users} users included)</span>}
                   </div>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3 mb-6">
-                    {plan.features.map((feature, fIndex) => (
-                      <li key={fIndex} className="flex items-start text-sm">
-                        <CheckCircle className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
+                    {plan.features.slice(0, 8).map((feature, index) => (
+                      <li key={index} className="flex items-start text-sm">
+                        <Check className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
                         <span>{feature}</span>
                       </li>
                     ))}
+                    {plan.features.length > 8 && (
+                      <li className="flex items-start text-sm text-muted-foreground">
+                        +{plan.features.length - 8} more features
+                      </li>
+                    )}
                   </ul>
+                  {plan.excluded.length > 0 && (
+                    <div className="border-t border-border pt-3 mb-6">
+                      <p className="text-sm text-muted-foreground mb-2">Upgrade for:</p>
+                      <ul className="space-y-2">
+                        {plan.excluded.map((feature, index) => (
+                          <li key={index} className="flex items-start text-sm text-muted-foreground">
+                            <X className="w-4 h-4 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <Button
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
@@ -506,49 +669,106 @@ export default function Landing() {
             ))}
           </div>
 
-          <div className="mt-12 text-center">
-            <p className="text-muted-foreground mb-4">
-              Need a custom enterprise solution? 
+          {/* Upgrade Strategy */}
+          <div className="mt-16 max-w-4xl mx-auto">
+            <h3 className="text-2xl font-bold text-center mb-8">Clear Upgrade Path</h3>
+            <div className="flex items-center justify-center gap-4">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-primary">Starter</div>
+                <div className="text-2xl font-bold">$299</div>
+                <div className="text-sm text-muted-foreground">Scheduling</div>
+              </div>
+              <ArrowRight className="text-muted-foreground" />
+              <div className="text-center">
+                <div className="text-lg font-semibold text-primary">Professional</div>
+                <div className="text-2xl font-bold">$599</div>
+                <div className="text-sm text-muted-foreground">+ Sales</div>
+              </div>
+              <ArrowRight className="text-muted-foreground" />
+              <div className="text-center">
+                <div className="text-lg font-semibold text-primary">Enterprise</div>
+                <div className="text-2xl font-bold">$1,299</div>
+                <div className="text-sm text-muted-foreground">+ Everything</div>
+              </div>
+            </div>
+            <p className="text-center text-sm text-muted-foreground mt-6">
+              Need a dialer? Upgrade to Professional. Need SMS/WhatsApp? Upgrade to Enterprise.
             </p>
-            <Button variant="outline" onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}>
-              Contact Sales
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
           </div>
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section id="testimonials" className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Trusted by Field Service Leaders
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              See why businesses choose Summit Voice CRM to transform their operations.
+      {/* Enterprise Value Proposition */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-background">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Replace Multiple Systems with One Platform</h2>
+            <p className="text-lg text-muted-foreground">
+              Stop paying for separate systems. Summit Leads Enterprise replaces them all.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <Card key={index} className="border-border">
+          <div className="grid md:grid-cols-2 gap-8 mb-12">
+            <div className="p-6 bg-muted rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 text-red-500">Before: Multiple Systems</h3>
+              <ul className="space-y-3">
+                <li className="flex justify-between"><span>JobNimbus</span><span>$300+</span></li>
+                <li className="flex justify-between"><span>Dialer</span><span>$200+</span></li>
+                <li className="flex justify-between"><span>SMS Tool</span><span>$100+</span></li>
+                <li className="flex justify-between"><span>Email Tool</span><span>$100+</span></li>
+                <li className="flex justify-between"><span>Automation</span><span>$150+</span></li>
+                <li className="flex justify-between"><span>Scheduling</span><span>$50+</span></li>
+                <li className="flex justify-between border-t border-border pt-3 mt-3 font-semibold">
+                  <span>Total</span>
+                  <span className="text-red-500">$900+/month</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-6 bg-primary/10 rounded-lg border-2 border-primary">
+              <h3 className="text-lg font-semibold mb-4 text-primary">After: Summit Leads Enterprise</h3>
+              <div className="text-4xl font-bold text-primary mb-2">$1,299</div>
+              <p className="text-muted-foreground mb-4">/month for everything</p>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center"><Check className="w-4 h-4 text-green-500 mr-2" />One login</li>
+                <li className="flex items-center"><Check className="w-4 h-4 text-green-500 mr-2" />One platform</li>
+                <li className="flex items-center"><Check className="w-4 h-4 text-green-500 mr-2" />One support team</li>
+                <li className="flex items-center"><Check className="w-4 h-4 text-green-500 mr-2" />One bill to manage</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <div className="text-3xl font-bold text-green-600 mb-2">Save $600+/month</div>
+            <p className="text-muted-foreground">Get more features for less money</p>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+          <div className="space-y-4">
+            {faqs.map((faq, index) => (
+              <Card key={index}>
                 <CardContent className="pt-6">
-                  <div className="flex items-center space-x-1 mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <p className="text-muted-foreground mb-6">{testimonial.content}</p>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-sm font-medium text-primary">{testimonial.avatar}</span>
+                  <button
+                    onClick={() => toggleFAQ(index)}
+                    className="w-full text-left flex items-center justify-between"
+                  >
+                    <span className="font-medium">{faq.question}</span>
+                    <ChevronRight
+                      className={`transition-transform ${
+                        activeFAQ === index ? "rotate-90" : ""
+                      }`}
+                    />
+                  </button>
+                  {activeFAQ === index && (
+                    <div className="mt-4 text-muted-foreground">
+                      {faq.answer}
                     </div>
-                    <div>
-                      <div className="font-medium">{testimonial.name}</div>
-                      <div className="text-sm text-muted-foreground">{testimonial.role}</div>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -559,29 +779,27 @@ export default function Landing() {
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-primary text-primary-foreground">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Ready to Transform Your Business?
-          </h2>
+          <h2 className="text-3xl font-bold mb-4">Ready to Stop Paying for Multiple Systems?</h2>
           <p className="text-xl text-primary-foreground/80 mb-8">
-            Join hundreds of field service businesses already using Summit Voice CRM to scale their operations.
+            Start with appointment scheduling, grow into a complete sales operation, and upgrade into a full field-service platform. One platform, one bill, unlimited growth.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
               variant="secondary"
-              onClick={handleGetStarted}
+              onClick={() => setShowComparison(true)}
               className="bg-background text-foreground hover:bg-background/90"
             >
-              Start Your Free Trial
+              Start Free Trial
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button
               size="lg"
               variant="outline"
               className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
-              onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
+              onClick={handleLogin}
             >
-              Schedule a Demo
+              Book Demo
             </Button>
           </div>
         </div>
@@ -593,24 +811,22 @@ export default function Landing() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <img src={summitLogo} alt="Summit Voice CRM" className="h-8 w-8" />
-                <span className="font-bold text-lg">Summit Voice CRM</span>
+                <img src={summitLogo} alt="Summit Leads" className="h-8 w-8" />
+                <span className="font-bold text-lg">Summit Leads</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                The complete field service management platform from lead to installation.
+                Appointment scheduling, sales workflow, and field service management in one platform.
               </p>
             </div>
-
             <div>
               <h3 className="font-semibold mb-4">Product</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><a href="#features" className="hover:text-foreground">Features</a></li>
                 <li><a href="#pricing" className="hover:text-foreground">Pricing</a></li>
+                <li><a href="#" className="hover:text-foreground">Comparisons</a></li>
                 <li><a href="#" className="hover:text-foreground">Integrations</a></li>
-                <li><a href="#" className="hover:text-foreground">API</a></li>
               </ul>
             </div>
-
             <div>
               <h3 className="font-semibold mb-4">Company</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
@@ -620,22 +836,88 @@ export default function Landing() {
                 <li><a href="#" className="hover:text-foreground">Contact</a></li>
               </ul>
             </div>
-
             <div>
               <h3 className="font-semibold mb-4">Legal</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><a href="#" className="hover:text-foreground">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-foreground">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-foreground">Cookie Policy</a></li>
+                <li><a href="#" className="hover:text-text-foreground">Cookie Policy</a></li>
               </ul>
             </div>
           </div>
-
           <div className="border-t border-border pt-8 text-center text-sm text-muted-foreground">
-            <p>© 2024 Summit Voice CRM. All rights reserved.</p>
+            <p>© 2024 Summit Leads. All rights reserved.</p>
           </div>
         </div>
       </footer>
+
+      {/* Comparison Modal */}
+      {showComparison && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Choose Your Plan</h2>
+                <button onClick={() => setShowComparison(false)} className="text-muted-foreground hover:text-foreground">
+                  <XIcon size={24} />
+                </button>
+              </div>
+              <p className="text-muted-foreground mb-6">
+                Start with scheduling, upgrade as you grow. No forced features.
+              </p>
+              <div className="space-y-4">
+                {pricingPlans.map((plan) => (
+                  <Card key={plan.name} className={plan.popular ? "border-2 border-primary" : "border-border"}>
+                    <CardHeader>
+                      <CardTitle className="text-xl">{plan.title}</CardTitle>
+                      <CardTitle className="text-2xl">${getCurrentPrice(plan.price)}/{billingCycle === "monthly" ? "month" : "year"}</CardTitle>
+                      {plan.users && <p className="text-sm text-muted-foreground">{plan.users} users included</p>}
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        className="w-full"
+                        variant={plan.popular ? "default" : "outline"}
+                        onClick={() => {
+                          setShowComparison(false);
+                          handleSubscribe(plan.name, plan.price);
+                        }}
+                      >
+                        {plan.popular ? "Start Free Trial" : "Get Started"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FAQ Modal */}
+      {showFAQ && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Frequently Asked Questions</h2>
+                <button onClick={() => setShowFAQ(false)} className="text-muted-foreground hover:text-foreground">
+                  <XIcon size={24} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                {faqs.map((faq, index) => (
+                  <Card key={index}>
+                    <CardContent className="pt-6">
+                      <h3 className="font-semibold mb-2">{faq.question}</h3>
+                      <p className="text-muted-foreground text-sm">{faq.answer}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Subscription Modal */}
       <SubscriptionModal
